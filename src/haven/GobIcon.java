@@ -425,6 +425,7 @@ public class GobIcon extends GAttrib {
 		set.show    = conf.show;
 		set.defshow = conf.defshow;
 		set.notify  = conf.notify;
+		set.ring    = conf.ring;
 		set.resns   = conf.resns;
 		set.filens  = conf.filens;
 		if(set.markset = conf.markset)

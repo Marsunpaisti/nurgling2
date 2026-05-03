@@ -425,7 +425,7 @@ public class MapFile {
     }
 
     public void update(Marker mark) {
-	lock.readLock().lock();
+	lock.writeLock().lock();
 	try {
 	    if(markers.contains(mark)) {
 		defersave();
@@ -433,7 +433,7 @@ public class MapFile {
 		mark.seq++;
 	    }
 	} finally {
-	    lock.readLock().unlock();
+	    lock.writeLock().unlock();
 	}
     }
 
