@@ -8,6 +8,7 @@ import nurgling.i18n.L10n;
 
 import java.awt.image.BufferedImage;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static nurgling.actions.bots.registry.BotDescriptor.BotType.*;
 
@@ -27,7 +28,7 @@ public class ScenarioBotSelectionDialog extends Window {
         for (BotDescriptor.BotType type : groupOrder) {
             List<BotDescriptor> group = BotRegistry.byType(type).stream()
                     .filter(b -> b.allowedAsStepInScenario)
-                    .toList();
+                    .collect(Collectors.toList());
             if (group.isEmpty()) continue;
 
             String title;
