@@ -55,6 +55,14 @@
   <target name="extlib-env">
     <mkdir dir="lib/ext" />
     <available property="extlib/has-jogl" file="lib/ext/jogl/has-jogl" />
+    <condition property="extlib/has-jogl-arm">
+      <and>
+        <available file="lib/ext/jogl/jogl-all.jar" />
+        <available file="lib/ext/jogl/jogl-all-natives-macosx-universal.jar" />
+        <available file="lib/ext/jogl/gluegen-rt.jar" />
+        <available file="lib/ext/jogl/gluegen-rt-natives-macosx-universal.jar" />
+      </and>
+    </condition>
     <available property="extlib/has-lwjgl-base" file="lib/ext/lwjgl/has-lwjgl-base" />
     <available property="extlib/has-lwjgl-gl" file="lib/ext/lwjgl/has-lwjgl-gl" />
     <available property="extlib/has-steamworks" file="lib/ext/steamworks/has-steamworks" />
@@ -76,9 +84,9 @@
     <extlib name="steamworks" path="lib/ext/steamworks" url="${ext-lib-base}/steamworks/current" />
   </target>
 
-    <target name="extlib/jogl-arm" depends="extlib/jogl">
+    <target name="extlib/jogl-arm" depends="extlib/jogl" unless="extlib/has-jogl-arm">
         <mkdir dir="lib/ext/jogl" />
-        <get dest="lib/ext/jogl/" verbose="true">
+        <get dest="lib/ext/jogl/" verbose="true" usetimestamp="true" maxtime="60" retries="3">
             <url url="https://jogamp.org/deployment/v2.5.0/jar/jogl-all.jar" />
             <url url="https://jogamp.org/deployment/v2.5.0/jar/jogl-all-natives-macosx-universal.jar" />
             <url url="https://jogamp.org/deployment/v2.5.0/jar/gluegen-rt.jar" />
@@ -193,6 +201,30 @@
     <chmod file="bin/hafen.jar" perm="a+x" />
   </target>
 
+  <target name="bin-dev" depends="jar, extlib/jogl-arm, extlib/lwjgl-gl, extlib/steamworks, res-jar">
+    <mkdir dir="bin-dev" />
+    <copy todir="bin-dev">
+      <fileset dir="build">
+	<include name="hafen.jar" />
+	<include name="nurgling-res.jar" />
+      </fileset>
+      <fileset dir="lib/ext">
+	<include name="hafen-res.jar" />
+	<include name="builtin-res.jar" />
+      </fileset>
+      <fileset dir="lib/ext/jogl"><include name="*.jar" /></fileset>
+      <fileset dir="lib/ext/lwjgl"><include name="*.jar" /></fileset>
+      <fileset dir="lib/ext/steamworks"><include name="*.jar" /></fileset>
+      <fileset dir="etc">
+	<include name="json-java.jar" />
+	<include name="postgresql-42.7.5.jar" />
+	<include name="sqlite-jdbc-3.49.1.0.jar" />
+      </fileset>
+    </copy>
+    <copy file="etc/ansgar-config.properties" tofile="bin-dev/haven-config.properties" />
+    <chmod file="bin-dev/hafen.jar" perm="a+x" />
+  </target>
+
   <target name="deftgt" depends="jars, bin" />
 
   <target name="run" depends="bin">
@@ -217,6 +249,7 @@
     <delete dir="build" />
     <delete dir="lib/ext" />
     <delete dir="bin" />
+    <delete dir="bin-dev" />
   </target>
 
   <target name="resources">

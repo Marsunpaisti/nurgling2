@@ -1,11 +1,15 @@
 /build
 /bin
+/bin-dev
 /local-config.properties
 /local-boot.properties
 /build.properties
 /out
 /resources/compiled
-/.idea
+/.idea/*
+!/.idea/runConfigurations/
+/.idea/runConfigurations/*
+!/.idea/runConfigurations/hafen_dev.xml
 nurgling2.iml
 *~
 CLAUDE.md
@@ -13,3 +17,8 @@ CLAUDE.md
 .agent-os
 __pycache__/
 *.pyc
+/.artifacts/*
+!/.artifacts/.gitkeep
+!/.artifacts/resource-dumps/
+/.artifacts/resource-dumps/*
+!/.artifacts/resource-dumps/.gitkeep

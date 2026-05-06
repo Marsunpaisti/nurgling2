@@ -383,7 +383,7 @@ public class BuildTrellis implements Action {
                         }
                     } else {
                         while (ingredient.count != 0 && NUtils.getGameUI().getInventory().getNumberFreeCoord(ingredient.coord) != 0) {
-                            ArrayList<Gob> piles = Finder.findGobs(ingredientArea, new NAlias("stockpile"));
+                            ArrayList<Gob> piles = Finder.findGobs(ingredientArea, Build.getStockpileName(ingredient.name));
                             if (piles.isEmpty()) {
                                 if(NUtils.getGameUI().getInventory().getItems(ingredient.name).size() != ingredient.count)
                                     return false;

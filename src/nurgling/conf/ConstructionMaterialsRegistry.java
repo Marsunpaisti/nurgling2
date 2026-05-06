@@ -195,6 +195,37 @@ public class ConstructionMaterialsRegistry {
         return MATERIAL_ALIASES.get(materialType);
     }
 
+    public static NAlias getStockpileName(NAlias items) {
+        MaterialType type = getMaterialType(items);
+        if (type == null) {
+            return new NAlias("stockpile");
+        }
+
+        switch (type) {
+            case BLOCK:
+                return new NAlias("gfx/terobjs/stockpile-wblock");
+            case BOARD:
+                return new NAlias("gfx/terobjs/stockpile-board");
+            case NUGGET:
+            case METAL_BAR:
+                return new NAlias("gfx/terobjs/stockpile-metal");
+            case CLAY:
+                return new NAlias("gfx/terobjs/stockpile-clay");
+            case BRICK:
+                return new NAlias("gfx/terobjs/stockpile-brick");
+            case BRANCH:
+                return new NAlias("gfx/terobjs/stockpile-branch");
+            case BOUGH:
+                return new NAlias("gfx/terobjs/stockpile-bough");
+            case LOG:
+                return new NAlias("gfx/terobjs/stockpile-log");
+            case STONE:
+                return new NAlias("gfx/terobjs/stockpile-stone");
+            default:
+                return new NAlias("stockpile");
+        }
+    }
+
     /**
      * Get all available material types
      */

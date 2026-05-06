@@ -567,7 +567,7 @@ public class Build implements Action
                     // No containers, try stockpiles
                     while (ingredient.count != 0 && NUtils.getGameUI().getInventory().getNumberFreeCoord(ingredient.coord) != 0)
                     {
-                        ArrayList<Gob> piles = Finder.findGobs(ingredientArea, new NAlias("stockpile"));
+                        ArrayList<Gob> piles = Finder.findGobs(ingredientArea, getStockpileName(ingredient.name));
                         if (piles.isEmpty())
                         {
                             if (NUtils.getGameUI().getInventory().getItems(ingredient.name).size() != ingredient.count)
@@ -614,6 +614,10 @@ public class Build implements Action
             }
         }
         return needRefill;
+    }
+
+    public static NAlias getStockpileName(NAlias items) {
+        return ConstructionMaterialsRegistry.getStockpileName(items);
     }
 
     private static class ConstructionProgress
