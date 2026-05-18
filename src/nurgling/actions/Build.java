@@ -8,6 +8,7 @@ import nurgling.NISBox;
 import nurgling.NUtils;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
+import nurgling.conf.ConstructionMaterialsRegistry;
 import nurgling.overlays.BuildGhostPreview;
 import nurgling.tasks.*;
 import nurgling.tools.*;
