@@ -68,7 +68,14 @@ public class NMapView extends MapView
 
     // Track areas that were deleted locally to prevent restoration during sync
     private final Set<Integer> locallyDeletedAreas = new HashSet<>();
-    
+
+    // Grid wall overlay: a single combined-mesh overlay covering all loaded grids
+    private NGridWallOverlay gridWallOverlay = null;
+    private RenderTree.Slot gridWallSlot = null;
+    private Set<Coord> gridWallLastCoords = null;
+    private Color gridWallLastColor = null;
+    private static final Color GRID_WALL_DEFAULT_COLOR = new Color(255, 140, 0, 217);
+
     public NMapView(Coord sz, Glob glob, Coord2d cc, long plgob)
     {
         super(sz, glob, cc, plgob);
@@ -823,10 +830,17 @@ public class NMapView extends MapView
             }
             NArea newArea = new NArea(key);
             newArea.id = id;
+            newArea.uuid = java.util.UUID.randomUUID().toString();
             newArea.space = result;
-            newArea.lastLocalChange = System.currentTimeMillis();
             newArea.grids_id.addAll(newArea.space.space.keySet());
             newArea.path = NUtils.getGameUI().areas.currentPath;
+            // Brand new area: baseline is empty so every group is "dirty" on first save.
+            newArea.baselineVersion = 0;
+            newArea.baselineSnapshot = null;
+            newArea.markDirty(nurgling.areas.AreaFieldGroup.GEOMETRY);
+            newArea.markDirty(nurgling.areas.AreaFieldGroup.IDENTITY);
+            newArea.markDirty(nurgling.areas.AreaFieldGroup.COSMETIC);
+            newArea.markDirty(nurgling.areas.AreaFieldGroup.ROUTING);
             
             // Apply random color if setting is enabled
             Object randomColorSetting = NConfig.get(NConfig.Key.randomAreaColor);
@@ -864,6 +878,9 @@ public class NMapView extends MapView
         if(markerLineOverlay != null) {
             markerLineOverlay.tick();
         }
+
+        // Reconcile per-grid wall overlays against currently loaded grids
+        updateGridWalls();
 
         // Tick chunk navigation system for recording
         if (chunkNavManager != null) {
@@ -963,6 +980,73 @@ public class NMapView extends MapView
             ol.tick();
     }
 
+    /**
+     * Reconciles the combined grid-wall overlay against currently loaded grids
+     * and the configured wall color. Builds one combined mesh, one draw call,
+     * dedupes shared edges between adjacent grids; rebuilds only when the grid
+     * set or color changes.
+     */
+    private void updateGridWalls()
+    {
+        boolean enabled = (Boolean) NConfig.get(NConfig.Key.gridbox);
+        if (!enabled) {
+            if (gridWallSlot != null) {
+                clearGridWalls();
+            }
+            return;
+        }
+
+        Set<Coord> currentGridCoords;
+        synchronized (glob.map.grids) {
+            currentGridCoords = new HashSet<>(glob.map.grids.keySet());
+        }
+        Color currentColor = NConfig.getColor(NConfig.Key.gridWallColor, GRID_WALL_DEFAULT_COLOR);
+
+        // Only include grids whose corners have loaded terrain; the rest are
+        // retried on later ticks as their data arrives.
+        Set<Coord> readyCoords = new HashSet<>(currentGridCoords.size());
+        for (Coord gc : currentGridCoords) {
+            if (NGridWallOverlay.isReady(glob.map, gc)) {
+                readyCoords.add(gc);
+            }
+        }
+
+        boolean needRebuild = (gridWallOverlay == null)
+                || gridWallLastCoords == null
+                || !readyCoords.equals(gridWallLastCoords)
+                || !currentColor.equals(gridWallLastColor);
+
+        if (!needRebuild) return;
+
+        if (gridWallOverlay == null) {
+            gridWallOverlay = new NGridWallOverlay();
+        }
+        gridWallOverlay.rebuild(glob.map, readyCoords, currentColor);
+        gridWallLastCoords = readyCoords;
+        gridWallLastColor = currentColor;
+
+        if (gridWallSlot == null) {
+            try {
+                gridWallSlot = basic.add(gridWallOverlay);
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private void clearGridWalls()
+    {
+        if (gridWallSlot != null) {
+            try {
+                gridWallSlot.remove();
+            } catch (Exception ignored) {
+            }
+            gridWallSlot = null;
+        }
+        gridWallOverlay = null;
+        gridWallLastCoords = null;
+        gridWallLastColor = null;
+    }
+
     public void toggleol(String tag, boolean a)
     {
         if (a)
@@ -978,7 +1062,73 @@ public class NMapView extends MapView
         if(ui.core.mode == NCore.Mode.DRAG) {
             return true;
         }
-        
+
+        // Base planner interactions — only active while the window is open.
+        nurgling.widgets.NBasePlannerWidget planner =
+                (NUtils.getGameUI() != null) ? NUtils.getGameUI().basePlanner : null;
+        if (planner != null && planner.visible()) {
+            // CLEAR-IN-AREA armed: LMB starts a one-shot rectangle selector that
+            // deletes ghosts in the active layer on mmouseup, then disarms.
+            if (planner.isClearInAreaArmed() && ev.b == 1) {
+                if (selection == null) {
+                    selection = new PlanningDeleteSelector();
+                }
+                return super.mousedown(ev);
+            }
+            // LMB during placement: capture as ghost instead of committing to server.
+            if (ev.b == 1 && !ui.modctrl && !ui.modshift && !ui.modmeta) {
+                Loader.Future<Plob> placing_l = this.placing;
+                if (placing_l != null && placing_l.done()) {
+                    Plob plob = placing_l.get();
+                    ResDrawable rd = plob.getattr(ResDrawable.class);
+                    if (rd != null && rd.res != null) {
+                        try {
+                            if (NUtils.getUI().core.planningLayer.getActiveLayer() == null) {
+                                NUtils.getGameUI().msg("Base planner: select a layer first");
+                                return true;
+                            }
+                            String resName = rd.res.get().name;
+                            byte[] sdtBytes = (rd.sdt != null) ? rd.sdt.clone().bytes() : null;
+                            NUtils.getUI().core.planningLayer.addGhost(resName, sdtBytes, plob.rc, plob.a);
+                            uimsg("unplace");
+                            planner.refresh();
+                            return true;
+                        } catch (Exception ignore) {
+                            // Fall through to normal handling.
+                        }
+                    }
+                }
+            }
+            // Shift+RMB removes the planning ghost under cursor.
+            if (ev.b == 3 && ui.modshift && !ui.modctrl && !ui.modmeta) {
+                final boolean[] consumed = {false};
+                new Maptest(ev.c) {
+                    @Override public void hit(Coord pc, Coord2d worldPos) {
+                        if (NUtils.getUI().core.planningLayer.removeGhostAt(worldPos, MCache.tilesz.x * 1.5)) {
+                            consumed[0] = true;
+                            planner.refresh();
+                        }
+                    }
+                }.run();
+                if (consumed[0]) return true;
+            }
+            // MMB on a ghost: re-enter placement with that resource (clone-pick).
+            if (ev.b == 2 && !ui.modctrl && !ui.modshift && !ui.modmeta) {
+                final boolean[] consumed = {false};
+                new Maptest(ev.c) {
+                    @Override public void hit(Coord pc, Coord2d worldPos) {
+                        nurgling.planning.PlanningGhost target =
+                                NUtils.getUI().core.planningLayer.getGhostAt(worldPos, MCache.tilesz.x * 1.5);
+                        if (target == null) return;
+                        if (startLocalPlacement(target.resName, target.sdt)) {
+                            consumed[0] = true;
+                        }
+                    }
+                }.run();
+                if (consumed[0]) return true;
+            }
+        }
+
         // Alt+Ctrl+LMB activates area selection for chat sharing
         if(ev.b == 1 && ui.modmeta && ui.modctrl) {
             if(!isAreaSelectionMode.get()) {
@@ -1040,6 +1190,24 @@ public class NMapView extends MapView
             return true;
         }
 
+        // Plain LMB/RMB on a gem's floating icon: redirect the click to the gem gob
+        // so the small ground item is easy to hit. Only fires without modifiers; all
+        // modifier combos keep their existing behavior.
+        if ((ev.b == 1 || ev.b == 3) && !ui.modctrl && !ui.modshift && !ui.modmeta) {
+            Gob iconTarget = findClickThroughIconGob(ev.c);
+            if (iconTarget != null) {
+                Coord2d gc = iconTarget.rc;
+                Coord pres = gc.floor(OCache.posres);
+                wdgmsg("click", Coord.z, pres, ev.b, ui.modflags(),
+                        0, (int) iconTarget.id, pres, 0, -1);
+                clickedGob = new ClickedGob(iconTarget, ev.b);
+                if (ev.b == 3) {
+                    NUtils.getUI().core.setLastAction(iconTarget);
+                }
+                return true;
+            }
+        }
+
         // Ctrl+RMB (without Shift) opens custom gob context menu
         if (ev.b == 3 && ui.modctrl && !ui.modshift) {
             new Click(ev.c, ev.b) {
@@ -1089,6 +1257,42 @@ public class NMapView extends MapView
         return super.mousedown(ev);
     }
 
+    // Finds a gob whose NTexMarker icon (drawn in screen space above the gob) was
+    // last rendered with its 48x48 rect containing the given screen position. Used
+    // to redirect clicks on the icon to the underlying gob (e.g. tiny gems on the
+    // ground). Picks the icon whose center is closest to the cursor when multiple
+    // overlap. Returns null if no fresh icon hit.
+    private Gob findClickThroughIconGob(Coord screenPos) {
+        if (glob == null || glob.oc == null) return null;
+        final long now = System.currentTimeMillis();
+        final int half = UI.scale(24);
+        Gob best = null;
+        int bestDist = Integer.MAX_VALUE;
+        synchronized (glob.oc) {
+            for (Gob gob : glob.oc) {
+                for (Gob.Overlay ol : gob.ols) {
+                    if (!(ol.spr instanceof nurgling.overlays.NTexMarker)) continue;
+                    nurgling.overlays.NTexMarker m = (nurgling.overlays.NTexMarker) ol.spr;
+                    if (!m.clickThroughToGob) continue;
+                    Coord sc = m.lastScreenCenter;
+                    if (sc == null) continue;
+                    // Stale icons (gob culled, off-screen, or just despawned) shouldn't
+                    // claim clicks. ~200ms covers ~12 frames at 60fps.
+                    if (now - m.lastDrawTimeMs > 200) continue;
+                    int dx = screenPos.x - sc.x;
+                    int dy = screenPos.y - sc.y;
+                    if (Math.abs(dx) > half || Math.abs(dy) > half) continue;
+                    int dist = dx * dx + dy * dy;
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        best = gob;
+                    }
+                }
+            }
+        }
+        return best;
+    }
+
     private Coord lastCoord = null;
     private Coord2d lastCoord2d = new Coord2d();
     @Override
@@ -1131,7 +1335,7 @@ public class NMapView extends MapView
         if(ev.code == 16) {
             shiftPressed = true;
         }
-        
+
         // Check preset keybindings first
         QuickActionPreset matchedPreset = findMatchingPreset(ev);
         if (matchedPreset != null) {
@@ -1445,6 +1649,82 @@ public class NMapView extends MapView
     }
 
     /**
+     * Construct a local Plob (no server round-trip) and install it as the
+     * current placement. Used by Base planner's MMB clone-pick. Returns true
+     * on success, false if the resource couldn't be loaded.
+     *
+     * Lives in NMapView (a subclass of MapView) so the protected Plob
+     * constructor is accessible.
+     */
+    protected boolean startLocalPlacement(String resName, byte[] sdtBytes) {
+        if (resName == null) return false;
+        try {
+            // Cancel any existing placement preview so the new one takes its place.
+            if (this.placing != null) uimsg("unplace");
+            final Indir<Resource> res = Resource.remote().load(resName);
+            final Message sdt = (sdtBytes != null && sdtBytes.length > 0)
+                    ? new MessageBuf(sdtBytes) : Message.nil;
+            this.placing = glob.loader.defer(() -> {
+                Plob p = createPlob(res, new MessageBuf(sdt));
+                p.place();
+                return p;
+            });
+            return true;
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    /**
+     * One-shot rectangle selector armed by the Base planner "CLEAR IN AREA" button.
+     * On release, deletes all ghosts in the active layer that fall within the
+     * world-pixel rectangle, then disarms the planner.
+     */
+    public class PlanningDeleteSelector extends Selector
+    {
+        public PlanningDeleteSelector() { super(null); }
+
+        @Override
+        public void mmousemove(Coord mc) {
+            super.mmousemove(mc);
+            if (sc != null) {
+                Coord tc = getec(mc);
+                Coord c1 = new Coord(Math.min(tc.x, sc.x), Math.min(tc.y, sc.y));
+                Coord c2 = new Coord(Math.max(tc.x, sc.x), Math.max(tc.y, sc.y));
+                currentSelectionCoords = new Pair<>(c1, c2.add(1, 1));
+            }
+        }
+
+        @Override
+        public boolean mmouseup(Coord mc, int button) {
+            synchronized (NMapView.this) {
+                if (sc != null) {
+                    Coord ec = mc.div(MCache.tilesz2);
+                    Coord t1 = new Coord(Math.min(ec.x, sc.x), Math.min(ec.y, sc.y));
+                    Coord t2 = new Coord(Math.max(ec.x, sc.x), Math.max(ec.y, sc.y)).add(1, 1);
+                    Coord2d minW = new Coord2d(t1.x * MCache.tilesz.x, t1.y * MCache.tilesz.y);
+                    Coord2d maxW = new Coord2d(t2.x * MCache.tilesz.x, t2.y * MCache.tilesz.y);
+                    int removed = NUtils.getUI().core.planningLayer.removeInArea(minW, maxW);
+                    NUtils.getGameUI().msg("Base planner: removed " + removed + " ghost(s)");
+                    if (NUtils.getGameUI().basePlanner != null) {
+                        NUtils.getGameUI().basePlanner.disarmClearInArea();
+                        NUtils.getGameUI().basePlanner.refresh();
+                    }
+                    xl.mv = false;
+                    tt = null;
+                    currentSelectionCoords = null;
+                    glob.map.remove(ol);
+                    mgrab.remove();
+                    sc = null;
+                    destroy();
+                    selection = null;
+                }
+                return true;
+            }
+        }
+    }
+
+    /**
      * Send selected area to chat in @Area format
      * Format: @Area(grid:x,y;grid:x,y) - two corner points (upper-left and bottom-right)
      */
@@ -1609,7 +1889,7 @@ public class NMapView extends MapView
             if(area.name.equals(name) && area.path.equals(path))
             {
                 area.hide = val;
-                area.lastLocalChange = System.currentTimeMillis();
+                area.markDirty(nurgling.areas.AreaFieldGroup.COSMETIC);
                 NConfig.needAreasUpdate();
                 return;
             }
@@ -1656,7 +1936,7 @@ public class NMapView extends MapView
     {
         NArea area = glob.map.areas.get(id);
         area.name = new_name;
-        area.lastLocalChange = System.currentTimeMillis();
+        area.markDirty(nurgling.areas.AreaFieldGroup.IDENTITY);
         NConfig.needAreasUpdate();
     }
 

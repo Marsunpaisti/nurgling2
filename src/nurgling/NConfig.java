@@ -102,7 +102,7 @@ public class NConfig
         worldexplorerprop,
         questNotified, lpassistent, fishingsettings,
         serverNode, serverUser, serverPass, postgresMaxConnections, ndbenable, dbStatsOverlay, harvestautorefill, cleanupQContainers, autoEquipTravellersSacks, qualityGrindSeedingPatter, postgres, sqlite, dbFilePath, simplecrops,
-        temsmarktime, exploredAreaEnable, chunkNavOverlay, player_box, player_fov, temsmarkdist, tempmark, tempmarkIgnoreDist, gridbox, useGlobalPf, useHFinGlobalPF, boxFillColor, boxEdgeColor, boxLineWidth, ropeAfterFeeding, ropeAfterTaiming, eatingConf, deersprop,dropConf, printpfmap, fonts,
+        temsmarktime, exploredAreaEnable, chunkNavOverlay, player_box, player_fov, temsmarkdist, tempmark, tempmarkIgnoreDist, gridbox, gridWallColor, useGlobalPf, useHFinGlobalPF, boxFillColor, boxEdgeColor, boxLineWidth, ropeAfterFeeding, ropeAfterTaiming, eatingConf, deersprop,dropConf, printpfmap, fonts,
         areaRankPresets,  // Map of areaId -> Map of animalType -> presetName
         shortCupboards,
         shortPalisades,
@@ -137,6 +137,7 @@ public class NConfig
         picklingRedOnion,
         picklingYellowOnion,
         openInventoryOnLogin,
+        autoShowSiegeEngines,
         bbDisplayMode,
         showCritterCircles,
         critterCircleSettings,
@@ -440,6 +441,7 @@ public class NConfig
 
         // Login settings
         conf.put(Key.openInventoryOnLogin, false);  // Default to closed (current behavior)
+        conf.put(Key.autoShowSiegeEngines, true);   // Default to on per user request
 
         // Critter circles - colored discs under small critters for easier clicking
         conf.put(Key.showCritterCircles, true);
@@ -692,6 +694,15 @@ public class NConfig
                 current.lastAreasChangeTime = now;
             }
         }
+        // Notify sync layer that the local user is actively editing so it can
+        // bias pull cadence / surface presence info (Phase 5).
+        try {
+            if (nurgling.NCore.databaseManager != null
+                && nurgling.NCore.databaseManager.getAreaService() != null) {
+                nurgling.NCore.databaseManager.getAreaService().markLocalEdit();
+            }
+        } catch (Exception ignore) {
+        }
     }
 
 
@@ -859,6 +870,22 @@ public class NConfig
      */
     public String getCheeseOrdersPath() {
         return getProfileAwarePath("cheese_orders.nurgling.json");
+    }
+
+    /**
+     * Gets the dynamic path for planning layer ghosts configuration file
+     */
+    public String getPlanningLayerPath() {
+        return getProfileAwarePath("planning_layer.nurgling.json");
+    }
+
+    /**
+     * Gets the dynamic path for the local-only Base planner view state
+     * (active layer + per-user visibility map). Written in both file mode
+     * and DB mode because visibility is never synced.
+     */
+    public String getPlanningViewPath() {
+        return getProfileAwarePath("planning_view.nurgling.json");
     }
 
     /**

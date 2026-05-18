@@ -821,9 +821,19 @@ public class NUtils
     {
         if (area == null) return false;
 
-        // Check if any corner of the area is reachable via local pathfinding
-        // If yes - we're already close enough, no need to use global navigation
+        // Check if any corner of the area is reachable via local pathfinding.
+        // If yes, walk onto a corner so callers can rely on the player actually
+        // being at the area afterwards. isAreaReachableByLocalPF has already
+        // verified getRCArea() != null, so checkHit is reliable here — skip the
+        // walk when the player is already inside the area.
         if (nurgling.navigation.AreaNavigationHelper.isAreaReachableByLocalPF(area)) {
+            Gob player = player();
+            if (player != null && !area.checkHit(player.rc)) {
+                Coord2d corner = nurgling.navigation.AreaNavigationHelper.findNearestReachableCorner(area);
+                if (corner != null) {
+                    new nurgling.actions.PathFinder(corner).run(getGameUI());
+                }
+            }
             return true;
         }
 
@@ -845,14 +855,75 @@ public class NUtils
         return false;
     }
 
+    /**
+     * Capture the player's current position as a grid-stable bookmark.
+     * The returned NGlobalCoord survives chunk-nav hops — the gridId and
+     * grid-local offset remain valid even when the starting grid is unloaded.
+     * Returns null if the player is not available.
+     */
+    public static NGlobalCoord bookmarkHere()
+    {
+        Gob player = player();
+        if (player == null) return null;
+        return new NGlobalCoord(player.rc);
+    }
+
+    /**
+     * Navigate back to a bookmarked position. Uses local pathfinding when the
+     * bookmarked grid is loaded and reachable, falls back to chunk navigation
+     * otherwise, then snaps onto the exact spot with a final local PathFinder.
+     * Returns false if the bookmark is null, the grid can't be resolved, or
+     * navigation fails.
+     */
+    public static boolean navigateTo(NGlobalCoord bookmark) throws InterruptedException
+    {
+        if (bookmark == null) return false;
+
+        Coord2d current = bookmark.getCurrentCoord();
+        if (current != null && nurgling.actions.PathFinder.isAvailable(current)) {
+            new nurgling.actions.PathFinder(current).run(getGameUI());
+            return true;
+        }
+
+        long gridId = bookmark.getGridId();
+        Coord localTile = bookmark.getLocalTile();
+        NGameUI gui = getGameUI();
+        if (gui != null && gui.map instanceof NMapView) {
+            ChunkNavManager chunkNav = ((NMapView) gui.map).getChunkNavManager();
+            if (chunkNav != null && chunkNav.isInitialized() && gridId != -1 && localTile != null) {
+                ChunkPath path = chunkNav.planToGridCoord(gridId, localTile);
+                if (path != null) {
+                    chunkNav.navigateWithPath(path, null, gui);
+                }
+            }
+        }
+
+        Coord2d after = bookmark.getCurrentCoord();
+        if (after != null && nurgling.actions.PathFinder.isAvailable(after)) {
+            new nurgling.actions.PathFinder(after).run(getGameUI());
+            return true;
+        }
+        return false;
+    }
+
     public static boolean navigateToArea(Specialisation string) throws InterruptedException
     {
         NArea area = NContext.findSpecGlobal(string.toString());
         if (area == null) return false;
 
-        // Check if any corner of the area is reachable via local pathfinding
-        // If yes - we're already close enough, no need to use global navigation
+        // Check if any corner of the area is reachable via local pathfinding.
+        // If yes, walk onto a corner so callers can rely on the player actually
+        // being at the area afterwards. isAreaReachableByLocalPF has already
+        // verified getRCArea() != null, so checkHit is reliable here — skip the
+        // walk when the player is already inside the area.
         if (nurgling.navigation.AreaNavigationHelper.isAreaReachableByLocalPF(area)) {
+            Gob player = player();
+            if (player != null && !area.checkHit(player.rc)) {
+                Coord2d corner = nurgling.navigation.AreaNavigationHelper.findNearestReachableCorner(area);
+                if (corner != null) {
+                    new nurgling.actions.PathFinder(corner).run(getGameUI());
+                }
+            }
             return true;
         }
 
