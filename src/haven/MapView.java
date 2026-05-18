@@ -2622,11 +2622,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		}
 
 		@Override
-		public boolean wheel (
-				Coord c,
-				int amount
-		) {
-			chfield ( super.tfield + amount * 10 );
+		public boolean wheel (MouseWheelEvent ev) {
+			chfield ( super.tfield + (float)ev.s * 10 );
 			return ( true );
 		}
 	}
@@ -2663,8 +2660,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 			angl = angl % ((float)Math.PI * 2.0f);
 		}
 
-		public boolean wheel(Coord c, int amount) {
-			float d = dist + (amount * 25);
+		@Override
+		public boolean wheel(MouseWheelEvent ev) {
+			float d = dist + ((float)ev.s * 25);
 			if(d < 5)
 				d = 5;
 			dist = d;
