@@ -27,6 +27,7 @@ import nurgling.actions.TransferToPiles;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.tasks.NTask;
+import nurgling.tasks.WaitFreeHand;
 import nurgling.tasks.WaitItems;
 import nurgling.tasks.WaitWindow;
 import nurgling.tasks.WindowIsClosed;
@@ -48,12 +49,14 @@ public class Leveler implements Action
     private static final NAlias SOIL = new NAlias("Soil", "Earthworm");
     private static final String CANNOT_LEVEL_MSG = "cannot be further leveled";
 
-    private final HashSet<Long> done = new HashSet<>();
-    private final HashSet<Long> skipped = new HashSet<>();
+    private final HashSet<Coord> done = new HashSet<>();
+    private final HashSet<Coord> skipped = new HashSet<>();
 
     @Override
     public Results run(NGameUI gui) throws InterruptedException
     {
+        done.clear();
+        skipped.clear();
         while (true) {
             Results rr = new RestoreResources().run(gui);
             if (!rr.IsSuccess()) {
@@ -81,7 +84,8 @@ public class Leveler implements Action
         Gob best = null;
         double bestDist = Double.MAX_VALUE;
         for (Gob s : surveys) {
-            if (done.contains(s.id) || skipped.contains(s.id)) continue;
+            Coord tile = tileOf(s);
+            if (done.contains(tile) || skipped.contains(tile)) continue;
             double d = s.rc.dist(player.rc);
             if (d < bestDist) { bestDist = d; best = s; }
         }
@@ -90,30 +94,24 @@ public class Leveler implements Action
 
     private Results handleSurvey(NGameUI gui, Gob surveyGob) throws InterruptedException
     {
-        long surveyId = surveyGob.id;
+        Coord tile = tileOf(surveyGob);
 
         if (NUtils.getGameUI().getWindow("Land survey") == null) {
             new PathFinder(surveyGob.rc).run(gui);
+            clearCursor(gui);
             NUtils.rclickGob(surveyGob);
             NUtils.addTask(new WaitWindow("Land survey"));
         }
         Window wnd = NUtils.getGameUI().getWindow("Land survey");
         if (!(wnd instanceof LandSurvey)) {
-            skipped.add(surveyId);
+            skipped.add(tile);
             return Results.SUCCESS();
         }
         LandSurvey survey = (LandSurvey) wnd;
 
-        if (varea(survey) != null && stockpileInside(gui, varea(survey))) {
-            gui.msg("Leveler: survey " + surveyId + " contains a stockpile - skipping");
-            closeWindow(survey);
-            skipped.add(surveyId);
-            return Results.SUCCESS();
-        }
-
         Label wlbl = findWlbl(survey);
         if (wlbl == null) {
-            skipped.add(surveyId);
+            skipped.add(tile);
             closeWindow(survey);
             return Results.SUCCESS();
         }
@@ -132,10 +130,10 @@ public class Leveler implements Action
             }
         }
 
-        return digLoop(gui, surveyId, survey);
+        return digLoop(gui, tile, survey);
     }
 
-    private Results digLoop(NGameUI gui, long surveyId, LandSurvey survey) throws InterruptedException
+    private Results digLoop(NGameUI gui, Coord tile, LandSurvey survey) throws InterruptedException
     {
         String prevLabel = null;
         boolean didDigThisCycle = false;
@@ -144,7 +142,7 @@ public class Leveler implements Action
             Button digBtn = findButton(survey, "Dig");
             Button removeBtn = findButton(survey, "Remove");
             if (wlbl == null || digBtn == null || removeBtn == null) {
-                skipped.add(surveyId);
+                skipped.add(tile);
                 closeWindow(survey);
                 return Results.SUCCESS();
             }
@@ -156,7 +154,7 @@ public class Leveler implements Action
             if (didDigThisCycle && prevLabel != null && prevLabel.equals(curLabel) && diff == 0) {
                 removeBtn.click();
                 NUtils.addTask(new WindowIsClosed(survey));
-                done.add(surveyId);
+                done.add(tile);
                 disposeIfNeeded(gui, true);
                 return Results.SUCCESS();
             }
@@ -194,7 +192,7 @@ public class Leveler implements Action
                     || syslogContainsSince(gui, sysBefore, CANNOT_LEVEL_MSG)) {
                 removeBtn.click();
                 NUtils.addTask(new WindowIsClosed(survey));
-                done.add(surveyId);
+                done.add(tile);
                 disposeIfNeeded(gui, true);
                 return Results.SUCCESS();
             }
@@ -211,9 +209,9 @@ public class Leveler implements Action
                 if (!dr.IsSuccess()) {
                     return Results.ERROR("Leveler: no soil disposal route available");
                 }
-                Gob sg = Finder.findGob(surveyId);
+                Gob sg = findSurveyByTile(tile);
                 if (sg == null) {
-                    done.add(surveyId);
+                    done.add(tile);
                     return Results.SUCCESS();
                 }
                 new PathFinder(sg.rc).run(gui);
@@ -330,6 +328,7 @@ public class Leveler implements Action
         if (put == null) put = NContext.findOutGlobal(SOIL_ITEM, 1, gui);
         if (put != null) {
             NUtils.navigateToArea(put);
+            clearCursor(gui);
             new TransferToPiles(put.getRCArea(), SOIL_ITEM, 0).run(gui);
         }
 
@@ -342,6 +341,7 @@ public class Leveler implements Action
             if (rca != null) {
                 Coord2d center = rca.b.sub(rca.a).div(2).add(rca.a);
                 new PathFinder(center).run(gui);
+                clearCursor(gui);
                 ArrayList<Widget> toDrop = new ArrayList<>();
                 for (Widget w = gui.getInventory().child; w != null; w = w.next) {
                     if (w instanceof WItem || w instanceof ItemStack) toDrop.add(w);
@@ -371,6 +371,27 @@ public class Leveler implements Action
             if (w instanceof WItem || w instanceof ItemStack) return false;
         }
         return true;
+    }
+
+    private static Coord tileOf(Gob g)
+    {
+        return g.rc.floor(MCache.tilesz);
+    }
+
+    private static Gob findSurveyByTile(Coord tile) throws InterruptedException
+    {
+        for (Gob g : Finder.findGobs(SURVOBJ)) {
+            if (tileOf(g).equals(tile)) return g;
+        }
+        return null;
+    }
+
+    private static void clearCursor(NGameUI gui) throws InterruptedException
+    {
+        if (gui.vhand != null) {
+            NUtils.drop(gui.vhand);
+            NUtils.addTask(new WaitFreeHand());
+        }
     }
 
     private static void stopDig(NGameUI gui) throws InterruptedException
@@ -405,16 +426,6 @@ public class Leveler implements Action
         } catch (NullPointerException e) {
             return null;
         }
-    }
-
-    private static boolean stockpileInside(NGameUI gui, Area varea) throws InterruptedException
-    {
-        ArrayList<Gob> piles = Finder.findGobs(STOCKPILE);
-        for (Gob sp : piles) {
-            Coord tc = sp.rc.floor(MCache.tilesz);
-            if (varea.contains(tc)) return true;
-        }
-        return false;
     }
 
     private static Label findWlbl(LandSurvey survey)
