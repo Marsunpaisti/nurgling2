@@ -3,6 +3,7 @@ package nurgling.db.service;
 import nurgling.areas.AreaFieldGroup;
 import nurgling.areas.AreaSnapshot;
 import nurgling.areas.NArea;
+import nurgling.db.DatabaseAdapter;
 import nurgling.db.DatabaseManager;
 import nurgling.db.dao.AreaDao;
 import org.json.JSONObject;
@@ -78,6 +79,15 @@ public class AreaService {
     public void saveArea(NArea area, String profile) throws SQLException {
         if (area == null || profile == null) return;
 
+        databaseManager.executeOperation(adapter -> {
+            saveArea(adapter, area, profile);
+            return null;
+        });
+    }
+
+    private void saveArea(DatabaseAdapter adapter, NArea area, String profile) throws SQLException {
+        if (area == null || profile == null) return;
+
         // No-op if nothing changed since last sync.
         Set<AreaFieldGroup> dirty = AreaMerger.localDirtyGroups(area);
         if (dirty.isEmpty() && area.baselineVersion > 0) {
@@ -112,9 +122,8 @@ public class AreaService {
             final int b = area.color.getBlue();
             final int a = area.color.getAlpha();
 
-            AreaDao.SaveResult result = databaseManager.executeOperation(adapter ->
-                areaDao.saveAreaOCC(adapter, area.id, uuidSnap, name, path, hide,
-                    r, g, b, a, dataStr, profile, expectedVersion, touchedBy));
+            AreaDao.SaveResult result = areaDao.saveAreaOCC(adapter, area.id, uuidSnap, name, path, hide,
+                r, g, b, a, dataStr, profile, expectedVersion, touchedBy);
 
             if (result.outcome != AreaDao.SaveOutcome.VERSION_CONFLICT) {
                 // Success - capture baseline so subsequent saves don't no-op falsely.
@@ -126,8 +135,7 @@ public class AreaService {
             }
 
             // Version conflict: pull remote, three-way merge, then retry.
-            AreaDao.AreaData remoteData = databaseManager.executeOperation(adapter ->
-                areaDao.loadAreaIncludingTombstone(adapter, area.id, profile));
+            AreaDao.AreaData remoteData = areaDao.loadAreaIncludingTombstone(adapter, area.id, profile);
             if (remoteData == null) {
                 // Row vanished (deleted). Treat as inserting a fresh row.
                 area.baselineVersion = 0;
@@ -264,12 +272,7 @@ public class AreaService {
         return databaseManager.executeWithRetry(adapter -> {
             int count = 0;
             for (NArea area : areasCopy) {
-                // Re-enter through the higher-level API so OCC + merge is applied per row.
-                try {
-                    saveArea(area, profile);
-                } catch (SQLException e) {
-                    throw e;
-                }
+                saveArea(adapter, area, profile);
                 count++;
             }
             return count;
