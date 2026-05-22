@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Data Access Object for Area entities
@@ -298,6 +299,36 @@ public class AreaDao {
     public int purgeTombstonesOlderThan(DatabaseAdapter adapter, Timestamp cutoff) throws SQLException {
         return adapter.executeUpdate(
             "DELETE FROM areas WHERE deleted_at IS NOT NULL AND deleted_at < ?", cutoff);
+    }
+
+    /**
+     * Tombstone every live area for a profile except the supplied imported IDs.
+     * Used by full-replace JSON import so stale DB rows do not sync back in.
+     */
+    public int tombstoneAreasNotIn(DatabaseAdapter adapter, String profile, Set<Integer> keepIds, String byPlayer) throws SQLException {
+        StringBuilder sql = new StringBuilder(
+            "UPDATE areas SET deleted_at = CURRENT_TIMESTAMP, version = version + 1, " +
+            "last_touched_by = ?, last_touched_at = CURRENT_TIMESTAMP " +
+            "WHERE profile = ? AND deleted_at IS NULL");
+
+        List<Object> args = new ArrayList<>();
+        args.add(byPlayer);
+        args.add(profile);
+
+        if (keepIds != null && !keepIds.isEmpty()) {
+            sql.append(" AND id NOT IN (");
+            boolean first = true;
+            for (Integer id : keepIds) {
+                if (id == null) continue;
+                if (!first) sql.append(", ");
+                sql.append("?");
+                args.add(id);
+                first = false;
+            }
+            sql.append(")");
+        }
+
+        return adapter.executeUpdate(sql.toString(), args.toArray());
     }
 
     /**

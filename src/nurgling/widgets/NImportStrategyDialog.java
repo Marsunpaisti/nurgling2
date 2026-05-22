@@ -3,8 +3,11 @@ package nurgling.widgets;
 import haven.*;
 import nurgling.*;
 import nurgling.i18n.L10n;
+import nurgling.areas.NArea;
 
 import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
 
 public class NImportStrategyDialog extends Window
 {
@@ -65,6 +68,7 @@ public class NImportStrategyDialog extends Window
     
     private void executeImport(ImportStrategy strategy) {
         if(selectedFile != null) {
+            pauseAreaSyncForImport();
             switch(strategy) {
                 case FULL_REPLACE:
                     NUtils.getUI().core.config.replaceAreas(selectedFile);
@@ -76,13 +80,49 @@ public class NImportStrategyDialog extends Window
                     NUtils.getUI().core.config.overwriteAreas(selectedFile);
                     break;
             }
-            NConfig.needAreasUpdate();
+            if (!syncImportedAreasToDatabase(strategy)) {
+                NConfig.needAreasUpdate();
+            }
             if(NUtils.getGameUI().areas != null) {
                 NUtils.getGameUI().areas.hide();
                 NUtils.getGameUI().areas.show();
             }
         }
         hide();
+    }
+
+    private void pauseAreaSyncForImport() {
+        if (NCore.databaseManager != null && NCore.databaseManager.getAreaService() != null) {
+            NCore.databaseManager.getAreaService().pauseSyncForImport();
+        }
+    }
+
+    private boolean syncImportedAreasToDatabase(ImportStrategy strategy) {
+        if (!(Boolean) NConfig.get(NConfig.Key.ndbenable)) return false;
+        if (NCore.databaseManager == null || !NCore.databaseManager.isReady()) return false;
+        if (NUtils.getGameUI() == null || NUtils.getGameUI().map == null ||
+            NUtils.getGameUI().map.glob == null || NUtils.getGameUI().map.glob.map == null) return false;
+
+        String profile = NUtils.getGameUI().getGenus();
+        if (profile == null || profile.isEmpty()) profile = "global";
+
+        Map<Integer, NArea> areas = new HashMap<>(NUtils.getGameUI().map.glob.map.areas);
+        if (strategy == ImportStrategy.FULL_REPLACE) {
+            NCore.databaseManager.getAreaService().replaceAreasToDatabaseAsync(areas, profile)
+                .exceptionally(e -> {
+                    System.err.println("Failed to replace imported areas in database: " + e.getMessage());
+                    NConfig.needAreasUpdate();
+                    return null;
+                });
+        } else {
+            NCore.databaseManager.getAreaService().exportAreasToDatabaseAsync(areas, profile)
+                .exceptionally(e -> {
+                    System.err.println("Failed to save imported areas to database: " + e.getMessage());
+                    NConfig.needAreasUpdate();
+                    return null;
+                });
+        }
+        return true;
     }
 
     @Override

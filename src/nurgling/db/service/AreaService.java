@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,6 +43,7 @@ public class AreaService {
     private ScheduledExecutorService syncScheduler = null;
     private AreaSyncCallback syncCallback = null;
     private volatile long lastLocalEditAt = 0;
+    private volatile long importSyncPausedUntil = 0;
     /**
      * Per-session bulk-load tracking. Each session ID is added the first time
      * the sync iterates it and runs a bulk load for its local map. Future ticks
@@ -279,6 +281,24 @@ public class AreaService {
         }, "Export " + areasCopy.size() + " areas");
     }
 
+    public CompletableFuture<Integer> replaceAreasToDatabaseAsync(Map<Integer, NArea> areas, String profile) {
+        List<NArea> areasCopy = new ArrayList<>(areas.values());
+        Set<Integer> keepIds = new HashSet<>();
+        for (NArea area : areasCopy) {
+            keepIds.add(area.id);
+        }
+
+        return databaseManager.executeWithRetry(adapter -> {
+            areaDao.tombstoneAreasNotIn(adapter, profile, keepIds, currentPlayerName());
+            int count = 0;
+            for (NArea area : areasCopy) {
+                saveArea(adapter, area, profile);
+                count++;
+            }
+            return count;
+        }, "Replace " + areasCopy.size() + " areas");
+    }
+
     // -------------------- Periodic sync poll --------------------
 
     /**
@@ -313,6 +333,7 @@ public class AreaService {
      */
     private void syncTick() {
         if (!syncEnabled) return;
+        if (System.currentTimeMillis() < importSyncPausedUntil) return;
         if (databaseManager == null || !databaseManager.isReady()) return;
 
         java.util.Collection<nurgling.sessions.SessionContext> sessions;
@@ -540,6 +561,10 @@ public class AreaService {
     }
 
     public long getLastLocalEditAt() { return lastLocalEditAt; }
+
+    public void pauseSyncForImport() {
+        importSyncPausedUntil = System.currentTimeMillis() + 10000;
+    }
 
     private Map<Integer, NArea> getLocalAreasSnapshot() {
         Map<Integer, NArea> result = new HashMap<>();
