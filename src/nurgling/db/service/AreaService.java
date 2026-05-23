@@ -472,7 +472,7 @@ public class AreaService {
 
             if (info.tombstoned) {
                 // Notify callback that this area is gone (it'll dedupe).
-                if (local != null && syncCallback != null) {
+                if (shouldApplyTombstone(local) && syncCallback != null) {
                     AreaSyncEvents.publish(new AreaSyncEvent(
                         AreaSyncEvent.Kind.DELETED, areaId, local.name,
                         null, null, null));
@@ -534,6 +534,10 @@ public class AreaService {
         }
 
         return updatedAreas;
+    }
+
+    private static boolean shouldApplyTombstone(NArea local) {
+        return local != null && local.baselineVersion > 0;
     }
 
     private static NArea convertToNArea(AreaDao.AreaData data) {
