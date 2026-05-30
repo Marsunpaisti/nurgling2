@@ -637,15 +637,35 @@ public class NUtils
                 ol.gob.rc.floor(posres), ol.id, -1);
     }
 
-    public static void stackSwitch(boolean state)
+    public static boolean stackSwitch(boolean state)
     {
         NInventory inv = (NInventory) NUtils.getGameUI().maininv;
         if (inv.bundle.a != state) {
-            MenuGrid.PagButton but = inv.pagBundle;
+            MenuGrid.PagButton but = inv.pagBundle != null ? inv.pagBundle : findBundleButton(inv);
             if (but != null) {
                 but.use(new MenuGrid.Interaction(1, 0));
             }
         }
+        return inv.bundle.a == state;
+    }
+
+    private static MenuGrid.PagButton findBundleButton(NInventory inv) {
+        NGameUI gui = NUtils.getGameUI();
+        if (gui == null || gui.menu == null) {
+            return null;
+        }
+        synchronized (gui.menu.paginae) {
+            for (MenuGrid.Pagina pagina : gui.menu.paginae) {
+                try {
+                    if (pagina.res != null && "paginae/act/itemcomb".equals(pagina.res().name)) {
+                        return inv.pagBundle = pagina.button();
+                    }
+                } catch (Loading ignored) {
+                    continue;
+                }
+            }
+        }
+        return null;
     }
 
     public static boolean barrelHasContent(Gob barrel) {

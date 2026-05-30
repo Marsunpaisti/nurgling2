@@ -952,6 +952,9 @@ public class NMapView extends MapView
                             return;
                         }
                         System.out.println("[NMapView] Running scenario: " + scenario.getName());
+                        if (disableStacks && !NUtils.stackSwitch(false)) {
+                            System.out.println("[NMapView] WARNING: Failed to disable inventory stacking before autorunner scenario");
+                        }
                         ScenarioRunner runner = new ScenarioRunner(scenario);
                         runner.run(boundGui);
                         System.out.println("[NMapView] Scenario completed, logging out...");
