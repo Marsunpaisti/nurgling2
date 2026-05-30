@@ -315,7 +315,7 @@ public class NBotsMenu extends Widget
             NGameUI gui = (boundUI != null) ? boundUI.gui : null;
 
             if (gui != null && gui.recentActionsPanel != null) {
-                gui.recentActionsPanel.addBotAction(path, action);
+                gui.recentActionsPanel.addBotAction(path, action, disStacks);
             }
 
             // Callback to run showLayouts and handle ActionWithFinal
@@ -351,7 +351,7 @@ public class NBotsMenu extends Widget
 
                     if (!active) {
                         if (gui != null && gui.recentActionsPanel != null) {
-                            gui.recentActionsPanel.addBotAction(path, action);
+                            gui.recentActionsPanel.addBotAction(path, action, disStacks);
                         }
 
                         thread = BotExecutor.runAsync(path + "-ToggleThread", action, disStacks);

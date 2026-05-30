@@ -13,6 +13,15 @@ public class ScenarioRunner implements Action {
         this.scenario = scenario;
     }
 
+    public boolean disablesStacks() {
+        for (BotStep step : scenario.getSteps()) {
+            BotDescriptor desc = BotRegistry.byId(step.getId());
+            if (desc != null && desc.disStacks)
+                return true;
+        }
+        return false;
+    }
+
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         for (BotStep step : scenario.getSteps()) {

@@ -40,7 +40,7 @@ public class LettuceAndPumpkinCollector implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
 
-        NAlias collected_items = new NAlias(items.keys, new ArrayList<>(Arrays.asList("stockpile", "barrel")));
+        NAlias collected_items = groundItemAlias(items);
         ArrayList<WItem> testItems;
 
         int totalItemsThatCanFit = 0;
@@ -89,6 +89,22 @@ public class LettuceAndPumpkinCollector implements Action {
         }
 
         return Results.SUCCESS();
+    }
+
+    static NAlias groundItemAlias(NAlias items) {
+        ArrayList<String> groundKeys = new ArrayList<>();
+        for (String key : items.keys) {
+            if (key.contains("/")) {
+                groundKeys.add(key);
+            }
+        }
+        if (groundKeys.isEmpty()) {
+            groundKeys.addAll(items.keys);
+        }
+
+        ArrayList<String> exceptions = new ArrayList<>(items.exceptions);
+        exceptions.addAll(Arrays.asList("stockpile", "barrel"));
+        return new NAlias(groundKeys, exceptions);
     }
 
     private void transferSeeds(NGameUI gui) throws InterruptedException {

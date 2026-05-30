@@ -916,6 +916,7 @@ public class NMapView extends MapView
                 final NUI boundUI = NUtils.getUI();
                 final NGameUI boundGui = (boundUI != null) ? boundUI.gui : null;
                 if (boundGui == null) return;
+                final boolean disableStacks = scenario != null && new ScenarioRunner(scenario).disablesStacks();
 
                 Thread t;
                 t = new Thread(() -> {
@@ -966,7 +967,7 @@ public class NMapView extends MapView
                         ThreadLocalUI.clear();
                     }
                 });
-                boundGui.biw.addObserve(t);
+                boundGui.biw.addObserve(t, disableStacks);
                 t.start();
             }
         }

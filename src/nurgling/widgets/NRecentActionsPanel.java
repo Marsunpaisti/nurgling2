@@ -47,7 +47,7 @@ public class NRecentActionsPanel extends Widget {
             }
             
             // Create new recent action
-            RecentAction newAction = new RecentAction(pagina, null, resourceName, null);
+            RecentAction newAction = new RecentAction(pagina, null, resourceName, null, false);
             
             // Remove duplicate if it exists
             recentActions.removeIf(action -> action.resourceName.equals(resourceName));
@@ -72,11 +72,18 @@ public class NRecentActionsPanel extends Widget {
      * Adds a bot action to the recent actions stack
      */
     public synchronized void addBotAction(String botPath, Action botAction) {
+        addBotAction(botPath, botAction, false);
+    }
+
+    /**
+     * Adds a bot action to the recent actions stack.
+     */
+    public synchronized void addBotAction(String botPath, Action botAction, boolean disStacks) {
         if (botPath == null || botAction == null) return;
         
         try {
             // Create new recent action for bot
-            RecentAction newAction = new RecentAction(null, botAction, botPath, botPath);
+            RecentAction newAction = new RecentAction(null, botAction, botPath, botPath, disStacks);
             
             // Remove duplicate if it exists
             recentActions.removeIf(action -> action.resourceName.equals(botPath));
@@ -143,13 +150,15 @@ public class NRecentActionsPanel extends Widget {
         final Action botAction;
         final String resourceName;
         final String botPath;
+        final boolean disStacks;
         final BufferedImage icon;
         
-        RecentAction(MenuGrid.Pagina pagina, Action botAction, String resourceName, String botPath) {
+        RecentAction(MenuGrid.Pagina pagina, Action botAction, String resourceName, String botPath, boolean disStacks) {
             this.pagina = pagina;
             this.botAction = botAction;
             this.resourceName = resourceName != null ? resourceName : "";
             this.botPath = botPath;
+            this.disStacks = disStacks;
             this.icon = createIcon(pagina, botPath);
         }
         
@@ -235,7 +244,7 @@ public class NRecentActionsPanel extends Widget {
             super(BUTTON_SIZE);
             
             // Create empty action for null slots
-            this.recentAction = (action != null) ? action : new RecentAction(null, null, "", null);
+            this.recentAction = (action != null) ? action : new RecentAction(null, null, "", null, false);
             
             // Create IButton with the action's icon (already a BufferedImage)
             this.button = new IButton(this.recentAction.icon, this.recentAction.icon, this.recentAction.icon) {
@@ -255,7 +264,7 @@ public class NRecentActionsPanel extends Widget {
                                     ((ActionWithFinal) recentAction.botAction).endAction();
                                 }
                             };
-                            BotExecutor.runWithSupports(recentAction.botPath + "-RecentAction", recentAction.botAction, false, onComplete);
+                            BotExecutor.runWithSupports(recentAction.botPath + "-RecentAction", recentAction.botAction, recentAction.disStacks, onComplete);
                         }
                     } catch (Exception e) {
                         // Silently ignore errors in action execution
