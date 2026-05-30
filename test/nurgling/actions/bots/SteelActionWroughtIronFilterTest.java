@@ -21,8 +21,12 @@ public class SteelActionWroughtIronFilterTest {
         Path source = Path.of("src", "nurgling", "actions", "bots", "SteelAction.java");
         String text = new String(Files.readAllBytes(source), StandardCharsets.UTF_8);
 
-        if (!text.contains("hasWroughtIronBar(gui.getInventory(container.cap))")) {
-            throw new AssertionError("SteelAction must inspect steelbox inventories for wrought iron bars");
+        if (!text.contains("hasWroughtIronBar(gui.getWindow(container.cap))")) {
+            throw new AssertionError("SteelAction must inspect all steelbox inventories for wrought iron bars");
+        }
+
+        if (text.contains("hasWroughtIronBar(gui.getInventory(container.cap))")) {
+            throw new AssertionError("SteelAction must not inspect only the first steelbox inventory");
         }
 
         if (!text.contains("containersWithWroughtIron")) {
@@ -31,6 +35,14 @@ public class SteelActionWroughtIronFilterTest {
 
         if (!text.contains("new FuelToContainers(containersWithWroughtIron)")) {
             throw new AssertionError("SteelAction must refuel only crucibles containing Wrought Iron");
+        }
+
+        if (!text.contains("setMaxlvl(18)")) {
+            throw new AssertionError("SteelAction must fill steel crucibles to the full 18/18 fuel meter");
+        }
+
+        if (text.contains("setMaxlvl(15)")) {
+            throw new AssertionError("SteelAction must not stop steel crucible fuel at 15/18");
         }
 
         if (!text.contains("for (Container cont : containersWithWroughtIron)")) {

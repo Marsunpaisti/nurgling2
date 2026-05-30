@@ -5,6 +5,7 @@ import haven.Gob;
 import haven.Loading;
 import haven.WItem;
 import haven.Widget;
+import haven.Window;
 import nurgling.NGItem;
 import nurgling.NGameUI;
 import nurgling.NInventory;
@@ -41,7 +42,7 @@ public class SteelAction implements Action {
                 Container cand = new Container(sm, "Steelbox", smelters);
 
                 cand.initattr(Container.FuelLvl.class);
-                cand.getattr(Container.FuelLvl.class).setMaxlvl(15);
+                cand.getattr(Container.FuelLvl.class).setMaxlvl(18);
                 cand.getattr(Container.FuelLvl.class).setAbsMaxlvl(18);
                 cand.getattr(Container.FuelLvl.class).setFueltype("branch");
 
@@ -57,7 +58,7 @@ public class SteelAction implements Action {
                 pf.isHardMode = true;
                 pf.run(gui);
                 new OpenTargetContainer(container).run(gui);
-                if (hasWroughtIronBar(gui.getInventory(container.cap))) {
+                if (hasWroughtIronBar(gui.getWindow(container.cap))) {
                     containersWithWroughtIron.add(container);
                 }
                 new CloseTargetContainer(container).run(gui);
@@ -78,6 +79,18 @@ public class SteelAction implements Action {
                 return Results.ERROR("I can't start a fire");
         }
         return Results.SUCCESS();
+    }
+
+    static boolean hasWroughtIronBar(Window window) {
+        if (window == null) {
+            return false;
+        }
+        for (Widget widget = window.lchild; widget != null; widget = widget.prev) {
+            if (widget instanceof NInventory && hasWroughtIronBar((NInventory) widget)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     static boolean hasWroughtIronBar(NInventory inventory) {
