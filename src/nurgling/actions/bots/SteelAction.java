@@ -1,7 +1,13 @@
 package nurgling.actions.bots;
 
+import haven.GItem;
 import haven.Gob;
+import haven.Loading;
+import haven.WItem;
+import haven.Widget;
+import nurgling.NGItem;
 import nurgling.NGameUI;
+import nurgling.NInventory;
 import nurgling.actions.*;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
@@ -51,7 +57,7 @@ public class SteelAction implements Action {
                 pf.isHardMode = true;
                 pf.run(gui);
                 new OpenTargetContainer(container).run(gui);
-                if (!gui.getInventory(container.cap).getItems(new NAlias("Wrought Iron")).isEmpty()) {
+                if (hasWroughtIronBar(gui.getInventory(container.cap))) {
                     containersWithWroughtIron.add(container);
                 }
                 new CloseTargetContainer(container).run(gui);
@@ -72,5 +78,40 @@ public class SteelAction implements Action {
                 return Results.ERROR("I can't start a fire");
         }
         return Results.SUCCESS();
+    }
+
+    static boolean hasWroughtIronBar(NInventory inventory) {
+        return inventory != null && hasWroughtIronBar(inventory.child);
+    }
+
+    private static boolean hasWroughtIronBar(Widget first) {
+        for (Widget widget = first; widget != null; widget = widget.next) {
+            if (widget instanceof WItem) {
+                GItem item = ((WItem) widget).item;
+                if (item instanceof NGItem) {
+                    NGItem nitem = (NGItem) item;
+                    if (isWroughtIronBar(nitem.name(), resourceName(nitem))) {
+                        return true;
+                    }
+                }
+                if (item.contents != null && hasWroughtIronBar(item.contents.child)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    static boolean isWroughtIronBar(String itemName, String resourceName) {
+        return "Bar of Wrought Iron".equalsIgnoreCase(itemName)
+                || "gfx/invobjs/bar-wroughtiron".equals(resourceName);
+    }
+
+    private static String resourceName(NGItem item) {
+        try {
+            return item.res == null ? null : item.res.get().name;
+        } catch (Loading ignored) {
+            return null;
+        }
     }
 }

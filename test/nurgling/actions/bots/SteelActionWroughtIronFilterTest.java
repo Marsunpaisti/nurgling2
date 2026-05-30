@@ -6,11 +6,23 @@ import java.nio.file.Path;
 
 public class SteelActionWroughtIronFilterTest {
     public static void main(String[] args) throws Exception {
+        if (!SteelAction.isWroughtIronBar("Bar of Wrought Iron", null)) {
+            throw new AssertionError("SteelAction must match wrought iron by display name");
+        }
+
+        if (!SteelAction.isWroughtIronBar(null, "gfx/invobjs/bar-wroughtiron")) {
+            throw new AssertionError("SteelAction must match wrought iron by resource name");
+        }
+
+        if (SteelAction.isWroughtIronBar("Wrought Iron Nugget", "gfx/invobjs/nugget-wroughtiron")) {
+            throw new AssertionError("SteelAction must not match wrought iron nuggets");
+        }
+
         Path source = Path.of("src", "nurgling", "actions", "bots", "SteelAction.java");
         String text = new String(Files.readAllBytes(source), StandardCharsets.UTF_8);
 
-        if (!text.contains("new NAlias(\"Wrought Iron\")")) {
-            throw new AssertionError("SteelAction must inspect steelbox inventories for Wrought Iron");
+        if (!text.contains("hasWroughtIronBar(gui.getInventory(container.cap))")) {
+            throw new AssertionError("SteelAction must inspect steelbox inventories for wrought iron bars");
         }
 
         if (!text.contains("containersWithWroughtIron")) {
