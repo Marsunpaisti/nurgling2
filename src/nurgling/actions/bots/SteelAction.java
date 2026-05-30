@@ -42,28 +42,29 @@ public class SteelAction implements Action {
                 containers.add(cand);
             }
 
-            ArrayList<Gob> lighted = new ArrayList<>();
-            for (Container cont : containers) {
-                lighted.add(Finder.findGob(cont.gobHash));
-            }
-
             if (containers.isEmpty())
                 return Results.ERROR("NO CRUCIBLES");
 
+            ArrayList<Container> containersWithWroughtIron = new ArrayList<>();
             for (Container container : containers) {
                 PathFinder pf = new PathFinder(Finder.findGob(container.gobHash));
                 pf.isHardMode = true;
                 pf.run(gui);
                 new OpenTargetContainer(container).run(gui);
+                if (!gui.getInventory(container.cap).getItems(new NAlias("Wrought Iron")).isEmpty()) {
+                    containersWithWroughtIron.add(container);
+                }
                 new CloseTargetContainer(container).run(gui);
             }
 
+            if (containersWithWroughtIron.isEmpty())
+                return Results.SUCCESS();
 
-            if (!new FuelToContainers(containers).run(gui).IsSuccess())
+            if (!new FuelToContainers(containersWithWroughtIron).run(gui).IsSuccess())
                 return Results.ERROR("NO FUEL");
 
             ArrayList<String> flighted = new ArrayList<>();
-            for (Container cont : containers) {
+            for (Container cont : containersWithWroughtIron) {
                 flighted.add(cont.gobHash);
             }
 
