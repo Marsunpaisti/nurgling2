@@ -37,12 +37,12 @@ public class SteelActionWroughtIronFilterTest {
             throw new AssertionError("SteelAction must refuel only crucibles containing Wrought Iron");
         }
 
-        if (!text.contains("setMaxlvl(18)")) {
-            throw new AssertionError("SteelAction must fill steel crucibles to the full 18/18 fuel meter");
+        if (!text.contains("setMaxlvl(17)")) {
+            throw new AssertionError("SteelAction must fill steel crucibles to a 17/18 fuel meter");
         }
 
-        if (text.contains("setMaxlvl(15)")) {
-            throw new AssertionError("SteelAction must not stop steel crucible fuel at 15/18");
+        if (text.contains("setMaxlvl(15)") || text.contains("setMaxlvl(18)")) {
+            throw new AssertionError("SteelAction must not stop steel crucible fuel at 15/18 or 18/18");
         }
 
         if (!text.contains("for (Container cont : containersWithWroughtIron)")) {

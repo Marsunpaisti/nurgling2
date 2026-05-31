@@ -42,7 +42,7 @@ public class SteelAction implements Action {
                 Container cand = new Container(sm, "Steelbox", smelters);
 
                 cand.initattr(Container.FuelLvl.class);
-                cand.getattr(Container.FuelLvl.class).setMaxlvl(18);
+                cand.getattr(Container.FuelLvl.class).setMaxlvl(17);
                 cand.getattr(Container.FuelLvl.class).setAbsMaxlvl(18);
                 cand.getattr(Container.FuelLvl.class).setFueltype("branch");
 
