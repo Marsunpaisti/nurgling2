@@ -17,19 +17,19 @@ public class CellsArrayRasterizationTest {
     }
 
     private static void pfCellsUsePeriodicSixUnitPlayerGrid() {
-        assertClose(Utils.pfGridToWorld(new Coord(-4, 0)).x, -11.0, "PF grid -4 x");
-        assertClose(Utils.pfGridToWorld(new Coord(-3, 0)).x, -8.0, "PF grid -3 x");
-        assertClose(Utils.pfGridToWorld(new Coord(-2, 0)).x, -5.5, "PF grid -2 x");
-        assertClose(Utils.pfGridToWorld(new Coord(-1, 0)).x, -3.0, "PF grid -1 x");
-        assertClose(Utils.pfGridToWorld(new Coord(0, 0)).x, 0.0, "PF grid 0 x");
-        assertClose(Utils.pfGridToWorld(new Coord(1, 1)).x, 3.0, "PF grid 1 x");
-        assertClose(Utils.pfGridToWorld(new Coord(2, 2)).x, 5.5, "PF grid 2 x");
-        assertClose(Utils.pfGridToWorld(new Coord(3, 3)).x, 8.0, "PF grid 3 x");
-        assertClose(Utils.pfGridToWorld(new Coord(4, 4)).x, 11.0, "PF grid 4 x");
-        assertClose(Utils.pfGridToWorld(new Coord(5, 5)).x, 14.0, "PF grid 5 x");
-        assertClose(Utils.pfGridToWorld(new Coord(6, 6)).x, 16.5, "PF grid 6 x");
-        assertClose(Utils.pfGridToWorld(new Coord(7, 7)).x, 19.0, "PF grid 7 x");
-        assertClose(Utils.pfGridToWorld(new Coord(8, 8)).x, 22.0, "PF grid 8 x");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(-4, 0)), -11.0, 0.0, "PF grid -4,0");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(-3, 0)), -8.0, 0.0, "PF grid -3,0");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(-2, 0)), -5.5, 0.0, "PF grid -2,0");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(-1, 0)), -3.0, 0.0, "PF grid -1,0");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(0, 0)), 0.0, 0.0, "PF grid 0,0");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(1, 1)), 3.0, 3.0, "PF grid 1,1");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(2, 2)), 5.5, 5.5, "PF grid 2,2");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(3, 3)), 8.0, 8.0, "PF grid 3,3");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(4, 4)), 11.0, 11.0, "PF grid 4,4");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(5, 5)), 14.0, 14.0, "PF grid 5,5");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(6, 6)), 16.5, 16.5, "PF grid 6,6");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(7, 7)), 19.0, 19.0, "PF grid 7,7");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(8, 8)), 22.0, 22.0, "PF grid 8,8");
     }
 
     private static void worldCoordinatesSnapToNearestPeriodicPfCell() {
@@ -115,6 +115,11 @@ public class CellsArrayRasterizationTest {
         if (actual.x != expectedX || actual.y != expectedY) {
             throw new AssertionError(label + ": expected (" + expectedX + ", " + expectedY + "), got " + actual);
         }
+    }
+
+    private static void assertCoord2d(Coord2d actual, double expectedX, double expectedY, String label) {
+        assertClose(actual.x, expectedX, label + " x");
+        assertClose(actual.y, expectedY, label + " y");
     }
 
     private static void assertClose(double actual, double expected, String label) {
