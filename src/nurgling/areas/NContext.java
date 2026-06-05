@@ -1493,9 +1493,8 @@ public class NContext {
     }
 
     /**
-     * Find all areas with a specific specialization and optional subtype.
-     * Uses ChunkNav distance when available, falling back to route graph.
-     * Returns list of areas sorted by distance from player.
+     * Find all registered areas with a specific specialization and optional subtype.
+     * Uses ChunkNav distance when available; areas with unknown distance are sorted last.
      */
     public static ArrayList<NArea> findAllSpec(String name, String subtype) {
         // Map to store areas with their distances
@@ -1503,24 +1502,15 @@ public class NContext {
         NGameUI gui = NUtils.getGameUI();
 
         if (gui != null && gui.map != null) {
-            Set<Integer> nids = gui.map.nols.keySet();
-            for (Integer id : nids) {
-                if (id > 0) {
-                    NArea area = gui.map.glob.map.areas.get(id);
-                    if (area != null) {
-                        for (NArea.Specialisation s : area.spec) {
-                            boolean nameMatch = s.name.equals(name);
-                            boolean subtypeMatch = (subtype == null || subtype.isEmpty()) ||
-                                (s.subtype != null && s.subtype.equalsIgnoreCase(subtype));
-                            if (nameMatch && subtypeMatch) {
-                                // Check if area is reachable using ChunkNav or RouteGraph
-                                double dist = getDistanceToArea(area, gui);
-                                if (dist < Double.MAX_VALUE) {
-                                    areaDistances.put(area, dist);
-                                }
-                                break; // Don't check other specs for same area
-                            }
-                        }
+            for (NArea area : gui.map.glob.map.areas.values()) {
+                if (area == null) continue;
+                for (NArea.Specialisation s : area.spec) {
+                    boolean nameMatch = s.name.equals(name);
+                    boolean subtypeMatch = (subtype == null || subtype.isEmpty()) ||
+                        (s.subtype != null && s.subtype.equalsIgnoreCase(subtype));
+                    if (nameMatch && subtypeMatch) {
+                        areaDistances.put(area, getDistanceToArea(area, gui));
+                        break; // Don't check other specs for same area
                     }
                 }
             }
