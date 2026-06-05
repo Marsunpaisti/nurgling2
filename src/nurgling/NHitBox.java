@@ -8,7 +8,6 @@ public class NHitBox
 {
     public Coord2d begin;
     public Coord2d end;
-    public boolean mirrorAsymmetric = true;
     public NHitBox(Coord begin, Coord end, boolean force)
     {
         this(new Coord2d(begin),new Coord2d(end), force);
@@ -26,11 +25,6 @@ public class NHitBox
 
     public NHitBox(Coord2d begin, Coord2d end, boolean force)
     {
-        this(begin, end, force, true);
-    }
-
-    public NHitBox(Coord2d begin, Coord2d end, boolean force, boolean mirrorAsymmetric)
-    {
         if(force)
         {
             this.begin = new Coord2d(begin.x,begin.y);
@@ -40,7 +34,6 @@ public class NHitBox
             this.begin = new Coord2d(Math.min(begin.x, -3), Math.min(begin.y, -3));
             this.end = new Coord2d(Math.max(end.x, 3), Math.max(end.y, 3));
         }
-        this.mirrorAsymmetric = mirrorAsymmetric;
     }
 
     private final static HashMap<String, NHitBox> custom = new HashMap<String, NHitBox>()
@@ -69,7 +62,7 @@ public class NHitBox
             put("gfx/terobjs/candelabrum", new NHitBox(new Coord(-2,-2),new Coord(2,2)));
             put("gfx/terobjs/gardenpot", new NHitBox(new Coord2d(-2.5,-2.5), new Coord2d(2.5,2.5), true));
             put("gfx/terobjs/cupboard", new NHitBox(new Coord2d(-5,-5),new Coord2d(5,5), true));
-            put("gfx/terobjs/htable", new NHitBox(new Coord2d(-2.965,-5.945),new Coord2d(3.965,5.945), true, false));
+            put("gfx/terobjs/htable", new NHitBox(new Coord2d(-2.965,-5.945),new Coord2d(3.965,5.945), true));
             put("gfx/terobjs/lanternpost", new NHitBox(new Coord(-2,-2),new Coord(2,2)));
             put("gfx/terobjs/cistern", new NHitBox(new Coord(-9,-9),new Coord(9,9)));
             put("gfx/terobjs/oven", new NHitBox(new Coord(-9,-9),new Coord(9,9)));
