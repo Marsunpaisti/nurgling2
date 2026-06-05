@@ -215,7 +215,7 @@ public class NPFMap
         Coord2d a = new Coord2d(Math.min(src.x, tgt.x), Math.min(src.y, tgt.y));
         Coord2d b = new Coord2d(Math.max(src.x, tgt.x), Math.max(src.y, tgt.y));
         Coord center = Utils.toPfGrid((a.add(b)).div(2));
-        dsize = Math.max(8,((int) Math.ceil(b.dist(a) / MCache.tilehsz.x)) * mul);
+        dsize = Math.max(16,((int) Math.ceil(b.dist(a) / Utils.GRID_STEP.x)) * mul);
         size = 2 * dsize + 1;
 
         cells = new Cell[size][size];

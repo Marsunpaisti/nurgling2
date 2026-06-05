@@ -1,14 +1,33 @@
 package nurgling.pf;
 
+import haven.Coord;
 import haven.Coord2d;
 import nurgling.NHitBox;
 
 public class CellsArrayRasterizationTest {
     public static void main(String[] args) {
+        pfCellsAreCenteredEveryQuarterTile();
+        cupboardUsesTenByTenHitbox();
         asymmetricHitboxesStillMirrorByDefault();
         herbalistTableUsesMeasuredUnmirroredHitbox();
         includesCellsTouchedOnlyByOverlapAtTheEdge();
         keepsRotatedThinHitboxesRepresented();
+    }
+
+    private static void pfCellsAreCenteredEveryQuarterTile() {
+        Coord2d firstStep = Utils.pfGridToWorld(new Coord(1, 1));
+
+        assertClose(firstStep.x, 2.75, "PF grid x step");
+        assertClose(firstStep.y, 2.75, "PF grid y step");
+    }
+
+    private static void cupboardUsesTenByTenHitbox() {
+        NHitBox hitBox = NHitBox.findCustom("gfx/terobjs/cupboard");
+
+        assertClose(hitBox.begin.x, -5.0, "cupboard min x");
+        assertClose(hitBox.begin.y, -5.0, "cupboard min y");
+        assertClose(hitBox.end.x, 5.0, "cupboard max x");
+        assertClose(hitBox.end.y, 5.0, "cupboard max y");
     }
 
     private static void asymmetricHitboxesStillMirrorByDefault() {

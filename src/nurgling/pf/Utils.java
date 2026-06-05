@@ -5,14 +5,17 @@ import nurgling.NUtils;
 
 public class Utils
 {
+    public static final Coord2d GRID_STEP = MCache.tileqsz;
+    public static final Coord2d CELL_HALFSZ = MCache.tileqsz;
+
     public static Coord toPfGrid(Coord2d coord)
     {
-        return coord.div(MCache.tilehsz).round();
+        return coord.div(GRID_STEP).round();
     }
 
     public static Coord2d pfGridToWorld(Coord coord)
     {
-        return coord.mul(MCache.tilehsz);
+        return coord.mul(GRID_STEP);
     }
 
     /**
