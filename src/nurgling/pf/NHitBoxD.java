@@ -1,6 +1,7 @@
 package nurgling.pf;
 
 import haven.*;
+import nurgling.NHitBox;
 
 public class NHitBoxD implements Comparable<NHitBoxD>, java.io.Serializable {
 // ul  0
@@ -53,15 +54,23 @@ public class NHitBoxD implements Comparable<NHitBoxD>, java.io.Serializable {
     }
 
     public NHitBoxD(Gob gob) {
-        this(gob.ngob.hitBox.begin, gob.ngob.hitBox.end, gob.rc, gob.a);
+        this(gob.ngob.hitBox, gob.rc, gob.a);
+    }
+
+    public NHitBoxD(NHitBox hb, Coord2d r, double angle) {
+        this(hb.begin, hb.end, r, angle, hb.mirrorAsymmetric);
     }
 
     public NHitBoxD(Coord2d ul, Coord2d br, Coord2d r, double angle) {
+        this(ul, br, r, angle, true);
+    }
+
+    private NHitBoxD(Coord2d ul, Coord2d br, Coord2d r, double angle, boolean mirrorAsymmetric) {
         // TODO assymetric hitbox?
         double kPi = ((2 * angle) / Math.PI);
         this.ul = Coord2d.of(Math.min(ul.x, br.x), Math.min(ul.y, br.y));
         this.br = Coord2d.of(Math.max(ul.x, br.x), Math.max(ul.y, br.y));
-        asymmetric = (ul.x != -br.x)/* || (ul.y != -br.y)*/;
+        asymmetric = mirrorAsymmetric && (ul.x != -br.x)/* || (ul.y != -br.y)*/;
 
         if (((kPi < 0) ? ((kPi % 1.0) + 1.0) : (kPi % 1.0)) > 0.0001)
             move(r, angle);
