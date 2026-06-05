@@ -44,46 +44,6 @@ public class CellsArray {
         Coord2d center = Utils.pfGridToWorld(cell);
         Coord2d ul = center.sub(Utils.CELL_HALFSZ);
         Coord2d br = center.add(Utils.CELL_HALFSZ);
-        Coord2d[] cellCorners = new Coord2d[]{
-                ul,
-                Coord2d.of(br.x, ul.y),
-                br,
-                Coord2d.of(ul.x, br.y)
-        };
-
-        if (isSeparated(Coord2d.of(1, 0), hitBox.c, cellCorners))
-            return false;
-        if (isSeparated(Coord2d.of(0, 1), hitBox.c, cellCorners))
-            return false;
-
-        for (int i = 0; i < 4; i++) {
-            Coord2d edge = hitBox.c[(i + 1) % 4].sub(hitBox.c[i]);
-            Coord2d axis = Coord2d.of(-edge.y, edge.x);
-            if (axis.x == 0 && axis.y == 0)
-                continue;
-            if (isSeparated(axis, hitBox.c, cellCorners))
-                return false;
-        }
-        return true;
-    }
-
-    private static boolean isSeparated(Coord2d axis, Coord2d[] hitBoxCorners, Coord2d[] cellCorners) {
-        double hitBoxMin = Double.MAX_VALUE;
-        double hitBoxMax = -Double.MAX_VALUE;
-        for (Coord2d corner : hitBoxCorners) {
-            double projection = corner.dot(axis);
-            hitBoxMin = Math.min(hitBoxMin, projection);
-            hitBoxMax = Math.max(hitBoxMax, projection);
-        }
-
-        double cellMin = Double.MAX_VALUE;
-        double cellMax = -Double.MAX_VALUE;
-        for (Coord2d corner : cellCorners) {
-            double projection = corner.dot(axis);
-            cellMin = Math.min(cellMin, projection);
-            cellMax = Math.max(cellMax, projection);
-        }
-
-        return hitBoxMax < cellMin || cellMax < hitBoxMin;
+        return hitBox.intersects(new NHitBoxD(ul, br), true);
     }
 }

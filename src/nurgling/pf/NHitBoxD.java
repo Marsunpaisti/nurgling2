@@ -27,9 +27,6 @@ public class NHitBoxD implements Comparable<NHitBoxD>, java.io.Serializable {
     boolean primitive = false;
     boolean asymmetric = false;
 
-    private static final boolean intersection_by_points = false;
-
-
     public NHitBoxD(Coord rc) {
         this.setUnitSquare(rc);
     }
@@ -302,45 +299,45 @@ public class NHitBoxD implements Comparable<NHitBoxD>, java.io.Serializable {
     }
 
     public boolean intersects(NHitBoxD other, boolean includeBorder) {
-        if (this.ortho && other.ortho) {
-            if (includeBorder)
-                return ((other.c[2].x >= this.c[0].x) &&
-                        (other.c[0].x <= this.c[2].x) &&
-                        (other.c[2].y >= this.c[0].y) &&
-                        (other.c[0].y <= this.c[2].y));
-            else
-                return ((other.c[2].x > this.c[0].x) &&
-                        (other.c[0].x < this.c[2].x) &&
-                        (other.c[2].y > this.c[0].y) &&
-                        (other.c[0].y < this.c[2].y));
+        for (int i = 0; i < 4; i++) {
+            Coord2d edge = c[(i + 1) % 4].sub(c[i]);
+            Coord2d axis = Coord2d.of(-edge.y, edge.x);
+            if (isSeparated(axis, c, other.c, includeBorder))
+                return false;
         }
 
-        if (!intersection_by_points) {
-            if (this.ortho)
-                if (other.contains(this.rc, includeBorder))
-                    return true;
-            if (other.ortho)
-                if (this.contains(other.rc, includeBorder))
-                    return true;
-            for (int k = 0; k < 4; k++)
-                if (other.contains(this.c[k], includeBorder))
-                    return true;
-            for (int k = 0; k < 4; k++)
-                if (this.contains(other.c[k], includeBorder))
-                    return true;
-
-            if (!other.ortho)
-                for (Coord2d checkPoint : other.checkPoints)
-                    if (this.contains(checkPoint, includeBorder))
-                        return true;
-            if (!this.ortho)
-                for (Coord2d checkPoint : this.checkPoints)
-                    if (other.contains(checkPoint, includeBorder))
-                        return true;
-        } else {
-            //TODO precise intersection system
+        for (int i = 0; i < 4; i++) {
+            Coord2d edge = other.c[(i + 1) % 4].sub(other.c[i]);
+            Coord2d axis = Coord2d.of(-edge.y, edge.x);
+            if (isSeparated(axis, c, other.c, includeBorder))
+                return false;
         }
 
-        return false;
+        return true;
+    }
+
+    private static boolean isSeparated(Coord2d axis, Coord2d[] first, Coord2d[] second, boolean includeBorder) {
+        if (axis.x == 0 && axis.y == 0)
+            return false;
+
+        double firstMin = Double.MAX_VALUE;
+        double firstMax = -Double.MAX_VALUE;
+        for (Coord2d corner : first) {
+            double projection = corner.dot(axis);
+            firstMin = Math.min(firstMin, projection);
+            firstMax = Math.max(firstMax, projection);
+        }
+
+        double secondMin = Double.MAX_VALUE;
+        double secondMax = -Double.MAX_VALUE;
+        for (Coord2d corner : second) {
+            double projection = corner.dot(axis);
+            secondMin = Math.min(secondMin, projection);
+            secondMax = Math.max(secondMax, projection);
+        }
+
+        if (includeBorder)
+            return firstMax < secondMin || secondMax < firstMin;
+        return firstMax <= secondMin || secondMax <= firstMin;
     }
 }
