@@ -10,7 +10,7 @@ public class Utils
 
     private static final double[] PF_TILE_OFFSETS = {0.0, 3.0, 5.5, 8.0};
     private static final double MIN_PF_STEP = 2.5;
-    private static final double EPS = 0.000001;
+    static final double EPS = 0.000001;
 
     public static Coord toPfGrid(Coord2d coord)
     {
@@ -35,6 +35,7 @@ public class Utils
         int best = tile * PF_STEPS_PER_TILE;
         double bestDist = Double.MAX_VALUE;
 
+        // Check adjacent tiles for coordinates near tile boundaries and negative coordinates.
         for(int candidateTile = tile - 1; candidateTile <= tile + 1; candidateTile++) {
             for(int offset = 0; offset < PF_STEPS_PER_TILE; offset++) {
                 int candidate = candidateTile * PF_STEPS_PER_TILE + offset;

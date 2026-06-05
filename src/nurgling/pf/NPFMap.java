@@ -300,8 +300,8 @@ public class NPFMap
                 {
                     ArrayList<Coord> cand = new ArrayList<>();
                     Coord2d world = Utils.pfGridToWorld(cells[i][j].pos);
-                    double hx = Utils.CELL_HALFSZ.x - 0.000001;
-                    double hy = Utils.CELL_HALFSZ.y - 0.000001;
+                    double hx = Utils.CELL_HALFSZ.x - Utils.EPS;
+                    double hy = Utils.CELL_HALFSZ.y - Utils.EPS;
                     cand.add(world.add(-hx, hy).div(MCache.tilesz).floor());
                     cand.add(world.add(hx, -hy).div(MCache.tilesz).floor());
                     cand.add(world.add(-hx, -hy).div(MCache.tilesz).floor());
