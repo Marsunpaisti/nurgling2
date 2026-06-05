@@ -426,10 +426,8 @@ public class ChunkNavRecorder {
                     continue;
                 }
 
-                // Compute hitbox in world space with rotation
-                nurgling.pf.NHitBoxD worldHitBox = new nurgling.pf.NHitBoxD(
-                    snap.hitBox.begin, snap.hitBox.end, snap.rc, snap.angle
-                );
+                // Compute hitbox in world space with rotation.
+                nurgling.pf.NHitBoxD worldHitBox = new nurgling.pf.NHitBoxD(snap.hitBox, snap.rc, snap.angle);
 
                 // Get circumscribed bounding box (axis-aligned after rotation)
                 Coord2d hitUL = worldHitBox.getCircumscribedUL();
@@ -447,24 +445,10 @@ public class ChunkNavRecorder {
                     (int) Math.ceil(hitBR.y / MCache.tilehsz.y)
                 );
 
-                // For each cell in the bounding box, do AABB intersection test
-                // We use direct AABB overlap on circumscribed bounds because the standard
-                // intersects() method uses point-containment which can miss thin edge overlaps
+                // For each candidate cell in the circumscribed bounds, test exact rectangle overlap.
                 for (int px = cellUL.x; px <= cellBR.x; px++) {
                     for (int py = cellUL.y; py <= cellBR.y; py++) {
-                        // Cell bounds in world coordinates
-                        // Cell at (px, py) covers world coords (px * 5.5, py * 5.5) to ((px+1) * 5.5, (py+1) * 5.5)
-                        double cellWorldMinX = px * MCache.tilehsz.x;
-                        double cellWorldMinY = py * MCache.tilehsz.y;
-                        double cellWorldMaxX = (px + 1) * MCache.tilehsz.x;
-                        double cellWorldMaxY = (py + 1) * MCache.tilehsz.y;
-
-                        // Direct AABB overlap test with the rotated hitbox's circumscribed bounds
-                        // This is conservative: it may mark extra cells but won't miss any
-                        boolean overlaps = (cellWorldMaxX >= hitUL.x) && (cellWorldMinX <= hitBR.x) &&
-                                          (cellWorldMaxY >= hitUL.y) && (cellWorldMinY <= hitBR.y);
-
-                        if (overlaps) {
+                        if (cellOverlapsHitBox(worldHitBox, px, py)) {
                             int localX = px - gridCellOrigin.x;
                             int localY = py - gridCellOrigin.y;
 
@@ -482,6 +466,15 @@ public class ChunkNavRecorder {
         }
 
         return blockedCells;
+    }
+
+    static boolean cellOverlapsHitBox(nurgling.pf.NHitBoxD hitBox, int cellX, int cellY) {
+        double minX = cellX * MCache.tilehsz.x;
+        double minY = cellY * MCache.tilehsz.y;
+        double maxX = (cellX + 1) * MCache.tilehsz.x;
+        double maxY = (cellY + 1) * MCache.tilehsz.y;
+        nurgling.pf.NHitBoxD cellBox = new nurgling.pf.NHitBoxD(Coord2d.of(minX, minY), Coord2d.of(maxX, maxY));
+        return hitBox.intersects(cellBox, true);
     }
 
     /**
