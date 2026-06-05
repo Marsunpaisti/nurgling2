@@ -47,10 +47,10 @@ public class NModelBox extends Sprite implements RenderTree.Node {
             {
                 ArrayList<Polygon> polygons = new ArrayList<>();
                 Coord2d[] polyVertexes = new Coord2d[4];
-                polyVertexes[0] = hitBox.begin.inv();
-                polyVertexes[1] = new Coord2d(hitBox.end.x, hitBox.begin.y).inv();
-                polyVertexes[2] = hitBox.end.inv();
-                polyVertexes[3] = new Coord2d(hitBox.begin.x, hitBox.end.y).inv();
+                polyVertexes[0] = hitBox.begin;
+                polyVertexes[1] = new Coord2d(hitBox.end.x, hitBox.begin.y);
+                polyVertexes[2] = hitBox.end;
+                polyVertexes[3] = new Coord2d(hitBox.begin.x, hitBox.end.y);
                 polygons.add(new Polygon(polyVertexes));
 
                 return new NBoundingBox(polygons, true);
@@ -130,18 +130,22 @@ public class NModelBox extends Sprite implements RenderTree.Node {
             this.emat = Pipe.Op.compose(fillOps.toArray(new Pipe.Op[0]));
         }
 
+        static Coord3f renderPoint(Coord2d point) {
+            return new Coord3f((float) point.x, (float) -point.y, 1.0f);
+        }
+
         private FillBuffer fill(VertexArray.Buffer dst, Environment env) {
             FillBuffer ret = env.fillbuf(dst);
             ByteBuffer buf = ret.push();
             if (pol.neg) {
                 for (int i = 3; i >= 0; i--) {
-                    buf.putFloat((float) pol.vertices[i].x).putFloat((float) -pol.vertices[i].y)
-                            .putFloat(1.0f);
+                    Coord3f point = renderPoint(pol.vertices[i]);
+                    buf.putFloat(point.x).putFloat(point.y).putFloat(point.z);
                 }
             } else {
                 for (int i = 0; i < 4; i++) {
-                    buf.putFloat((float) pol.vertices[i].x).putFloat((float) pol.vertices[i].y)
-                            .putFloat(1.0f);
+                    Coord3f point = renderPoint(pol.vertices[i]);
+                    buf.putFloat(point.x).putFloat(point.y).putFloat(point.z);
                 }
             }
             return (ret);
