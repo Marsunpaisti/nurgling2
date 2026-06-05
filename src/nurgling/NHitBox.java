@@ -68,7 +68,7 @@ public class NHitBox
             put("gfx/terobjs/iconsign", new NHitBox(new Coord(-2,-2),new Coord(2,2)));
             put("gfx/terobjs/candelabrum", new NHitBox(new Coord(-2,-2),new Coord(2,2)));
             put("gfx/terobjs/gardenpot", new NHitBox(new Coord2d(-2.5,-2.5), new Coord2d(2.5,2.5), true));
-            put("gfx/terobjs/cupboard", new NHitBox(new Coord2d(-5.5,-5.5),new Coord2d(5.5,5.5)));
+            put("gfx/terobjs/cupboard", new NHitBox(new Coord2d(-5,-5),new Coord2d(5,5), true));
             put("gfx/terobjs/htable", new NHitBox(new Coord2d(-2.965,-5.945),new Coord2d(3.965,5.945), true, false));
             put("gfx/terobjs/lanternpost", new NHitBox(new Coord(-2,-2),new Coord(2,2)));
             put("gfx/terobjs/cistern", new NHitBox(new Coord(-9,-9),new Coord(9,9)));
