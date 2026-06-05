@@ -23,7 +23,7 @@ public class CellsArray {
     }
 
     public CellsArray(NHitBox hb, double angl, Coord2d rc) {
-        NHitBoxD objToApproach = new NHitBoxD(hb.begin, hb.end, rc, angl);
+        NHitBoxD objToApproach = new NHitBoxD(hb, rc, angl);
         Coord2d ul = objToApproach.getCircumscribedUL();
         Coord2d br = objToApproach.getCircumscribedBR();
         begin = new Coord((int) Math.floor((ul.x - MCache.tileqsz.x) / MCache.tilehsz.x),
