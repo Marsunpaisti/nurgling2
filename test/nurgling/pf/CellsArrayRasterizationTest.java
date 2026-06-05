@@ -6,7 +6,9 @@ import nurgling.NHitBox;
 
 public class CellsArrayRasterizationTest {
     public static void main(String[] args) {
-        pfCellsAreCenteredEveryQuarterTile();
+        pfCellsUsePeriodicSixUnitPlayerGrid();
+        worldCoordinatesSnapToNearestPeriodicPfCell();
+        pfCellsUseSixUnitPlayerFootprint();
         cupboardUsesTenByTenHitbox();
         asymmetricHitboxesUseMeasuredLocalOffset();
         herbalistTableUsesMeasuredHitbox();
@@ -14,11 +16,35 @@ public class CellsArrayRasterizationTest {
         keepsRotatedThinHitboxesRepresented();
     }
 
-    private static void pfCellsAreCenteredEveryQuarterTile() {
-        Coord2d firstStep = Utils.pfGridToWorld(new Coord(1, 1));
+    private static void pfCellsUsePeriodicSixUnitPlayerGrid() {
+        assertClose(Utils.pfGridToWorld(new Coord(-4, 0)).x, -11.0, "PF grid -4 x");
+        assertClose(Utils.pfGridToWorld(new Coord(-3, 0)).x, -8.0, "PF grid -3 x");
+        assertClose(Utils.pfGridToWorld(new Coord(-2, 0)).x, -5.5, "PF grid -2 x");
+        assertClose(Utils.pfGridToWorld(new Coord(-1, 0)).x, -3.0, "PF grid -1 x");
+        assertClose(Utils.pfGridToWorld(new Coord(0, 0)).x, 0.0, "PF grid 0 x");
+        assertClose(Utils.pfGridToWorld(new Coord(1, 1)).x, 3.0, "PF grid 1 x");
+        assertClose(Utils.pfGridToWorld(new Coord(2, 2)).x, 5.5, "PF grid 2 x");
+        assertClose(Utils.pfGridToWorld(new Coord(3, 3)).x, 8.0, "PF grid 3 x");
+        assertClose(Utils.pfGridToWorld(new Coord(4, 4)).x, 11.0, "PF grid 4 x");
+        assertClose(Utils.pfGridToWorld(new Coord(5, 5)).x, 14.0, "PF grid 5 x");
+        assertClose(Utils.pfGridToWorld(new Coord(6, 6)).x, 16.5, "PF grid 6 x");
+        assertClose(Utils.pfGridToWorld(new Coord(7, 7)).x, 19.0, "PF grid 7 x");
+        assertClose(Utils.pfGridToWorld(new Coord(8, 8)).x, 22.0, "PF grid 8 x");
+    }
 
-        assertClose(firstStep.x, 2.75, "PF grid x step");
-        assertClose(firstStep.y, 2.75, "PF grid y step");
+    private static void worldCoordinatesSnapToNearestPeriodicPfCell() {
+        assertCoord(Utils.toPfGrid(new Coord2d(0.0, 0.0)), 0, 0, "snap exact origin");
+        assertCoord(Utils.toPfGrid(new Coord2d(2.9, 3.1)), 1, 1, "snap near offset 3");
+        assertCoord(Utils.toPfGrid(new Coord2d(5.6, 5.4)), 2, 2, "snap near tile center");
+        assertCoord(Utils.toPfGrid(new Coord2d(8.1, 7.9)), 3, 3, "snap near offset 8");
+        assertCoord(Utils.toPfGrid(new Coord2d(10.9, 11.1)), 4, 4, "snap near next tile edge");
+        assertCoord(Utils.toPfGrid(new Coord2d(-2.9, -3.1)), -1, -1, "snap negative offset -3");
+        assertCoord(Utils.toPfGrid(new Coord2d(-5.4, -5.6)), -2, -2, "snap negative center");
+    }
+
+    private static void pfCellsUseSixUnitPlayerFootprint() {
+        assertClose(Utils.CELL_HALFSZ.x, 3.0, "PF cell half width");
+        assertClose(Utils.CELL_HALFSZ.y, 3.0, "PF cell half height");
     }
 
     private static void cupboardUsesTenByTenHitbox() {
@@ -83,6 +109,12 @@ public class CellsArrayRasterizationTest {
             }
         }
         return blocked;
+    }
+
+    private static void assertCoord(Coord actual, int expectedX, int expectedY, String label) {
+        if (actual.x != expectedX || actual.y != expectedY) {
+            throw new AssertionError(label + ": expected (" + expectedX + ", " + expectedY + "), got " + actual);
+        }
     }
 
     private static void assertClose(double actual, double expected, String label) {
