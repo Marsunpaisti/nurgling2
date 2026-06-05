@@ -215,7 +215,7 @@ public class NPFMap
         Coord2d a = new Coord2d(Math.min(src.x, tgt.x), Math.min(src.y, tgt.y));
         Coord2d b = new Coord2d(Math.max(src.x, tgt.x), Math.max(src.y, tgt.y));
         Coord center = Utils.toPfGrid((a.add(b)).div(2));
-        dsize = Math.max(16,((int) Math.ceil(b.dist(a) / Utils.GRID_STEP.x)) * mul);
+        dsize = Math.max(16, Utils.maxPfStepsForWorldDistance(b.dist(a)) * mul);
         size = 2 * dsize + 1;
 
         cells = new Cell[size][size];
@@ -299,10 +299,11 @@ public class NPFMap
                 if (cells[i][j].val == 0)
                 {
                     ArrayList<Coord> cand = new ArrayList<>();
-                    cand.add((Utils.pfGridToWorld(cells[i][j].pos).add(new Coord2d(-MCache.tileqsz.x,MCache.tileqsz.y))).div(MCache.tilesz).floor());
-                    cand.add((Utils.pfGridToWorld(cells[i][j].pos).add(new Coord2d(MCache.tileqsz.x,-MCache.tileqsz.y))).div(MCache.tilesz).floor());
-                    cand.add((Utils.pfGridToWorld(cells[i][j].pos).add(new Coord2d(-MCache.tileqsz.x,-MCache.tileqsz.y))).div(MCache.tilesz).floor());
-                    cand.add((Utils.pfGridToWorld(cells[i][j].pos).add(new Coord2d(MCache.tileqsz.x,MCache.tileqsz.y))).div(MCache.tilesz).floor());
+                    Coord2d world = Utils.pfGridToWorld(cells[i][j].pos);
+                    cand.add(world.add(-Utils.CELL_HALFSZ.x, Utils.CELL_HALFSZ.y).div(MCache.tilesz).floor());
+                    cand.add(world.add(Utils.CELL_HALFSZ.x, -Utils.CELL_HALFSZ.y).div(MCache.tilesz).floor());
+                    cand.add(world.add(-Utils.CELL_HALFSZ.x, -Utils.CELL_HALFSZ.y).div(MCache.tilesz).floor());
+                    cand.add(world.add(Utils.CELL_HALFSZ.x, Utils.CELL_HALFSZ.y).div(MCache.tilesz).floor());
 
                     for(Coord c : cand) {
                         String name = NUtils.getGameUI().ui.sess.glob.map.tilesetname(NUtils.getGameUI().ui.sess.glob.map.gettile(c));

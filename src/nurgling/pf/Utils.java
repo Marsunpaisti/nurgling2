@@ -5,7 +5,6 @@ import nurgling.NUtils;
 
 public class Utils
 {
-    public static final Coord2d GRID_STEP = MCache.tileqsz;
     public static final Coord2d CELL_HALFSZ = Coord2d.of(3.0, 3.0);
     public static final int PF_STEPS_PER_TILE = 4;
 
