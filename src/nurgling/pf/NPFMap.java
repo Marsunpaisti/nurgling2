@@ -300,10 +300,12 @@ public class NPFMap
                 {
                     ArrayList<Coord> cand = new ArrayList<>();
                     Coord2d world = Utils.pfGridToWorld(cells[i][j].pos);
-                    cand.add(world.add(-Utils.CELL_HALFSZ.x, Utils.CELL_HALFSZ.y).div(MCache.tilesz).floor());
-                    cand.add(world.add(Utils.CELL_HALFSZ.x, -Utils.CELL_HALFSZ.y).div(MCache.tilesz).floor());
-                    cand.add(world.add(-Utils.CELL_HALFSZ.x, -Utils.CELL_HALFSZ.y).div(MCache.tilesz).floor());
-                    cand.add(world.add(Utils.CELL_HALFSZ.x, Utils.CELL_HALFSZ.y).div(MCache.tilesz).floor());
+                    double hx = Utils.CELL_HALFSZ.x - 0.000001;
+                    double hy = Utils.CELL_HALFSZ.y - 0.000001;
+                    cand.add(world.add(-hx, hy).div(MCache.tilesz).floor());
+                    cand.add(world.add(hx, -hy).div(MCache.tilesz).floor());
+                    cand.add(world.add(-hx, -hy).div(MCache.tilesz).floor());
+                    cand.add(world.add(hx, hy).div(MCache.tilesz).floor());
 
                     for(Coord c : cand) {
                         String name = NUtils.getGameUI().ui.sess.glob.map.tilesetname(NUtils.getGameUI().ui.sess.glob.map.gettile(c));
