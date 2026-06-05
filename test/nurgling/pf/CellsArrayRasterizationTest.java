@@ -8,8 +8,8 @@ public class CellsArrayRasterizationTest {
     public static void main(String[] args) {
         pfCellsAreCenteredEveryQuarterTile();
         cupboardUsesTenByTenHitbox();
-        asymmetricHitboxesStillMirrorByDefault();
-        herbalistTableUsesMeasuredUnmirroredHitbox();
+        asymmetricHitboxesUseMeasuredLocalOffset();
+        herbalistTableUsesMeasuredHitbox();
         includesCellsTouchedOnlyByOverlapAtTheEdge();
         keepsRotatedThinHitboxesRepresented();
     }
@@ -30,15 +30,15 @@ public class CellsArrayRasterizationTest {
         assertClose(hitBox.end.y, 5.0, "cupboard max y");
     }
 
-    private static void asymmetricHitboxesStillMirrorByDefault() {
+    private static void asymmetricHitboxesUseMeasuredLocalOffset() {
         NHitBox hitBox = new NHitBox(new Coord2d(-2.0, -1.0), new Coord2d(4.0, 1.0), true);
         NHitBoxD box = new NHitBoxD(hitBox, new Coord2d(0.0, 0.0), 0);
 
-        assertClose(box.getCircumscribedUL().x, -4.0, "default asymmetric hitbox min x");
-        assertClose(box.getCircumscribedBR().x, 2.0, "default asymmetric hitbox max x");
+        assertClose(box.getCircumscribedUL().x, -2.0, "asymmetric hitbox min x");
+        assertClose(box.getCircumscribedBR().x, 4.0, "asymmetric hitbox max x");
     }
 
-    private static void herbalistTableUsesMeasuredUnmirroredHitbox() {
+    private static void herbalistTableUsesMeasuredHitbox() {
         NHitBox hitBox = NHitBox.findCustom("gfx/terobjs/htable");
         NHitBoxD box = new NHitBoxD(hitBox, new Coord2d(0.0, 0.0), 0);
 
