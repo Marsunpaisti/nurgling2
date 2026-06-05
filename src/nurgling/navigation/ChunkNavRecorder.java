@@ -473,8 +473,7 @@ public class ChunkNavRecorder {
         double minY = cellY * MCache.tilehsz.y;
         double maxX = (cellX + 1) * MCache.tilehsz.x;
         double maxY = (cellY + 1) * MCache.tilehsz.y;
-        nurgling.pf.NHitBoxD cellBox = new nurgling.pf.NHitBoxD(Coord2d.of(minX, minY), Coord2d.of(maxX, maxY));
-        return hitBox.intersects(cellBox, true);
+        return hitBox.intersectsAxisAlignedRect(minX, minY, maxX, maxY, true);
     }
 
     /**

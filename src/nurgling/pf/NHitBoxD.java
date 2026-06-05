@@ -10,35 +10,33 @@ public class NHitBoxD implements Comparable<NHitBoxD>, java.io.Serializable {
 //    |____|
 //       2   br
 
-    //core hitbox data
-    public Coord2d ul, br;
-    public Coord2d rc = Coord2d.of(Double.MAX_VALUE);
-    public double angle = Double.MAX_VALUE;
+    // core hitbox data
+    public final Coord2d ul, br;
+    public final Coord2d rc;
+    public final double angle;
 
-    //secondary data
-    double sn = 0, cs = 1;
-    public Coord2d[] n = {Coord2d.of(0, 1), Coord2d.of(-1, 0), Coord2d.of(0, -1), Coord2d.of(1, 0)};
-    public double[] d = {0, 0, 0, 0};
-    //corners ul=>ur=>br=>bl
-    public Coord2d[] c = new Coord2d[4];
-    boolean checkPointsInitiated = false;
-    public Coord2d[] checkPoints;
-    boolean ortho = true;
-    boolean primitive = false;
+    // secondary data
+    final double sn, cs;
+    public final Coord2d[] n;
+    public final double[] d;
+    // corners ul=>ur=>br=>bl
+    public final Coord2d[] c;
+    public final Coord2d[] checkPoints;
+    final boolean ortho;
+    final boolean primitive;
 
     public NHitBoxD(Coord rc) {
-        this.setUnitSquare(rc);
+        this(MCache.tileqsz.sub(MCache.tilehsz), MCache.tileqsz, Utils.pfGridToWorld(rc), 0, true);
     }
 
     public NHitBoxD(Coord2d ul) {
-        this.setUnitSquare(ul);
-
+        this(ul, ul.add(MCache.tilehsz), null, 0, true);
     }
 
     public NHitBoxD(Coord2d ul, Coord2d br) {
-        //TODO empty hitbox center
-        //TODO rotten log no hitbox
-        this.setOrtho(ul, br, null, 0);
+        // TODO empty hitbox center
+        // TODO rotten log no hitbox
+        this(ul, br, null, 0, false);
     }
 
     public NHitBoxD(Coord ul, Coord br) {
@@ -46,7 +44,7 @@ public class NHitBoxD implements Comparable<NHitBoxD>, java.io.Serializable {
     }
 
     public NHitBoxD(Coord2d ul, Coord2d br, Coord2d r) {
-        this.setOrtho(ul, br, r, 0);
+        this(ul, br, r, 0, false);
     }
 
     public NHitBoxD(Gob gob) {
@@ -58,136 +56,106 @@ public class NHitBoxD implements Comparable<NHitBoxD>, java.io.Serializable {
     }
 
     public NHitBoxD(Coord2d ul, Coord2d br, Coord2d r, double angle) {
-        double kPi = ((2 * angle) / Math.PI);
-        this.ul = Coord2d.of(Math.min(ul.x, br.x), Math.min(ul.y, br.y));
-        this.br = Coord2d.of(Math.max(ul.x, br.x), Math.max(ul.y, br.y));
+        this(ul, br, r, angle, false);
+    }
 
-        if (((kPi < 0) ? ((kPi % 1.0) + 1.0) : (kPi % 1.0)) > 0.0001)
-            move(r, angle);
-        else
-            move_ortho(r, (int) Math.round(kPi));
+    private NHitBoxD(Coord2d ul, Coord2d br, Coord2d r, double angle, boolean primitive) {
+        Coord2d min = Coord2d.of(Math.min(ul.x, br.x), Math.min(ul.y, br.y));
+        Coord2d max = Coord2d.of(Math.max(ul.x, br.x), Math.max(ul.y, br.y));
+        Coord2d center = (r == null) ? Coord2d.of((min.x + max.x) / 2, (min.y + max.y) / 2) : Coord2d.of(r.x, r.y);
+
+        this.ul = Coord2d.of(min.x - ((r == null) ? center.x : 0), min.y - ((r == null) ? center.y : 0));
+        this.br = Coord2d.of(max.x - ((r == null) ? center.x : 0), max.y - ((r == null) ? center.y : 0));
+        this.rc = center;
+        this.primitive = primitive;
+
+        double kPi = ((2 * angle) / Math.PI);
+        boolean cardinal = Math.abs(kPi - Math.rint(kPi)) <= 0.0001;
+        if (cardinal) {
+            int quarterTurns = (int) Math.round(kPi);
+            this.angle = quarterTurns * Math.PI / 2.0;
+            this.sn = 0;
+            this.cs = 1;
+            this.n = new Coord2d[]{Coord2d.of(0, 1), Coord2d.of(-1, 0), Coord2d.of(0, -1), Coord2d.of(1, 0)};
+            this.d = new double[]{0, 0, 0, 0};
+            this.c = orthoCorners(this.ul, this.br, this.rc, quarterTurns);
+            this.ortho = true;
+            this.checkPoints = null;
+        } else {
+            this.angle = angle;
+            this.sn = Math.sin(angle);
+            this.cs = Math.cos(angle);
+            this.n = new Coord2d[]{
+                    Coord2d.of(-sn, cs),
+                    Coord2d.of(-cs, -sn),
+                    Coord2d.of(sn, -cs),
+                    Coord2d.of(cs, sn)
+            };
+            this.c = new Coord2d[]{
+                    this.ul.rot(angle).add(this.rc),
+                    Coord2d.of(this.br.x, this.ul.y).rot(angle).add(this.rc),
+                    this.br.rot(angle).add(this.rc),
+                    Coord2d.of(this.ul.x, this.br.y).rot(angle).add(this.rc)
+            };
+            this.d = new double[4];
+            for (int ind = 0; ind < 4; ind++) {
+                this.d[ind] = this.n[ind].dot(this.c[ind]);
+            }
+            this.ortho = false;
+            this.checkPoints = computeCheckPoints(primitive, this.ortho, this.c);
+        }
     }
 
     public static NHitBoxD shaftBoxObjectFactory(Coord2d begin, Coord2d end, double halfWidth) {
-        //TODO refactor
+        // TODO refactor
         double halfLength = begin.dist(end) / 2;
         return new NHitBoxD(Coord2d.of(-halfLength, -halfWidth), Coord2d.of(halfLength, halfWidth), begin.add(end).div(2), end.angle(begin));
     }
 
-    public void setUnitSquare(Coord newRC) {
-        primitive = true;
-        this.setOrtho(MCache.tileqsz.sub(MCache.tilehsz), MCache.tileqsz, Utils.pfGridToWorld(newRC), 0);
-    }
-
-    public void setUnitSquare(Coord2d newUL) {
-        primitive = true;
-        this.setOrtho(newUL, newUL.add(MCache.tilehsz), null, 0);
-    }
-
-    public void setOrtho(Coord2d ul, Coord2d br, Coord2d r, int quarterTurns) {
-        if (r == null)
-            rc = Coord2d.of((ul.x + br.x) / 2, (ul.y + br.y) / 2);
-        else {
-            rc.x = r.x;
-            rc.y = r.y;
-        }
-        this.ul = Coord2d.of(Math.min(ul.x, br.x) - ((r == null) ? rc.x : 0), Math.min(ul.y, br.y) - ((r == null) ? rc.y : 0));
-        this.br = Coord2d.of(Math.max(ul.x, br.x) - ((r == null) ? rc.x : 0), Math.max(ul.y, br.y) - ((r == null) ? rc.y : 0));
-
-        move_ortho(rc, quarterTurns);
-    }
-
-    public void move_ortho(Coord2d new_rc, int quarterTurns) {
-        rc.x = new_rc.x;
-        rc.y = new_rc.y;
-        angle = quarterTurns * Math.PI / 2.0;
-
-        switch (quarterTurns % 4) {
+    private static Coord2d[] orthoCorners(Coord2d ul, Coord2d br, Coord2d rc, int quarterTurns) {
+        switch (Math.floorMod(quarterTurns, 4)) {
             case 0:
-                c[0] = this.ul.add(rc);
-                c[1] = Coord2d.of(this.br.x, this.ul.y).add(rc);
-                c[2] = this.br.add(rc);
-                c[3] = Coord2d.of(this.ul.x, this.br.y).add(rc);
-                break;
-
+                return new Coord2d[]{
+                        ul.add(rc),
+                        Coord2d.of(br.x, ul.y).add(rc),
+                        br.add(rc),
+                        Coord2d.of(ul.x, br.y).add(rc)
+                };
             case 1:
-                c[0] = Coord2d.of(-this.br.y, this.ul.x).add(rc);
-                c[1] = Coord2d.of(-this.ul.y, this.ul.x).add(rc);
-                c[2] = Coord2d.of(-this.ul.y, this.br.x).add(rc);
-                c[3] = Coord2d.of(-this.br.y, this.br.x).add(rc);
-                break;
-
+                return new Coord2d[]{
+                        Coord2d.of(-br.y, ul.x).add(rc),
+                        Coord2d.of(-ul.y, ul.x).add(rc),
+                        Coord2d.of(-ul.y, br.x).add(rc),
+                        Coord2d.of(-br.y, br.x).add(rc)
+                };
             case 2:
-                c[0] = Coord2d.of(-this.br.x, -this.br.y).add(rc);
-                c[1] = Coord2d.of(-this.ul.x, -this.br.y).add(rc);
-                c[2] = Coord2d.of(-this.ul.x, -this.ul.y).add(rc);
-                c[3] = Coord2d.of(-this.br.x, -this.ul.y).add(rc);
-                break;
-
+                return new Coord2d[]{
+                        Coord2d.of(-br.x, -br.y).add(rc),
+                        Coord2d.of(-ul.x, -br.y).add(rc),
+                        Coord2d.of(-ul.x, -ul.y).add(rc),
+                        Coord2d.of(-br.x, -ul.y).add(rc)
+                };
             case 3:
-                c[0] = Coord2d.of(this.ul.y, -this.br.x).add(rc);
-                c[1] = Coord2d.of(this.br.y, -this.br.x).add(rc);
-                c[2] = Coord2d.of(this.br.y, -this.ul.x).add(rc);
-                c[3] = Coord2d.of(this.ul.y, -this.ul.x).add(rc);
-                break;
+                return new Coord2d[]{
+                        Coord2d.of(ul.y, -br.x).add(rc),
+                        Coord2d.of(br.y, -br.x).add(rc),
+                        Coord2d.of(br.y, -ul.x).add(rc),
+                        Coord2d.of(ul.y, -ul.x).add(rc)
+                };
         }
-
-        ortho = true;
+        throw new IllegalArgumentException("Invalid quarter turn count: " + quarterTurns);
     }
 
-    public boolean move(Coord2d NewShift, double newAngle) {
-        if ((angle != newAngle) || (NewShift != rc)) {
-            angle = newAngle;
-            rc.x = NewShift.x;
-            rc.y = NewShift.y;
+    private static Coord2d[] computeCheckPoints(boolean primitive, boolean ortho, Coord2d[] c) {
+        if (primitive || ortho) return null;
 
-            sn = Math.sin(angle);
-            cs = Math.cos(angle);
+        double xRange = c[0].dist(c[1]);
+        double yRange = c[0].dist(c[3]);
+        int xCnt = (int) Math.floor(xRange / MCache.tilehsz.x);
+        int yCnt = (int) Math.floor(yRange / MCache.tilehsz.x);
+        if ((xCnt + yCnt) == 0) return new Coord2d[0];
 
-            n[0].x = -sn;
-            n[0].y = cs;
-
-            n[1].x = -cs;
-            n[1].y = -sn;
-
-            n[2].x = sn;
-            n[2].y = -cs;
-
-            n[3].x = cs;
-            n[3].y = sn;
-
-
-            c[0] = ul.rot(angle).add(rc);
-            c[1] = Coord2d.of(br.x, ul.y).rot(angle).add(rc);
-            c[2] = br.rot(angle).add(rc);
-            c[3] = Coord2d.of(ul.x, br.y).rot(angle).add(rc);
-
-            for (int ind = 0; ind < 4; ind++) {
-                d[ind] = n[ind].dot(c[ind]);
-            }
-            this.ortho = false;
-            setUpCheckpoints();
-            return true;
-        }
-        return false;
-    }
-
-    public void setUpCheckpoints() {
-        if (primitive || ortho) return;
-
-        int xCnt = 0;
-        int yCnt = 0;
-        double xRange, yRange;
-        if (!checkPointsInitiated) {
-            xRange = c[0].dist(c[1]);
-            yRange = c[0].dist(c[3]);
-            xCnt = (int) Math.floor(xRange / MCache.tilehsz.x);
-            yCnt = (int) Math.floor(yRange / MCache.tilehsz.x);
-            if ((checkPoints == null) || (checkPoints.length != (2 * (xCnt + yCnt))) || ((xCnt + yCnt) == 0))
-                checkPoints = new Coord2d[2 * (xCnt + yCnt)];
-            checkPointsInitiated = true;
-        }
-
+        Coord2d[] checkPoints = new Coord2d[2 * (xCnt + yCnt)];
         for (int i = 0; i < xCnt; i++) {
             checkPoints[i] = c[0].mul((double) (i + 1) / (xCnt + 1)).add(c[1].mul((double) (xCnt - i) / (xCnt + 1)));
             checkPoints[i + xCnt] = c[3].mul((double) (i + 1) / (xCnt + 1)).add(c[2].mul((double) (xCnt - i) / (xCnt + 1)));
@@ -196,6 +164,7 @@ public class NHitBoxD implements Comparable<NHitBoxD>, java.io.Serializable {
             checkPoints[2 * xCnt + i] = c[0].mul((double) (i + 1) / (xCnt + 1)).add(c[3].mul((double) (xCnt - i) / (xCnt + 1)));
             checkPoints[2 * xCnt + i + yCnt] = c[1].mul((double) (i + 1) / (xCnt + 1)).add(c[2].mul((double) (xCnt - i) / (xCnt + 1)));
         }
+        return checkPoints;
     }
 
     @Override
@@ -214,16 +183,15 @@ public class NHitBoxD implements Comparable<NHitBoxD>, java.io.Serializable {
     }
 
     public int compareTo(NHitBoxD c) {
-        return (br == c.br) ? ul.compareTo(c.ul) : br.compareTo(c.br);
+        return br.equals(c.br) ? ul.compareTo(c.ul) : br.compareTo(c.br);
     }
-
 
     public void reCalc_dv() {
 
     }
 
     public Coord2d projectCenter(Coord2d direction) {
-        //TODO refactor
+        // TODO refactor
         double tau = Float.MAX_VALUE;
         for (int k = 0; k < 4; k++) {
             if (Math.abs(direction.dot(this.n[k])) > 0.0001) {
@@ -289,31 +257,73 @@ public class NHitBoxD implements Comparable<NHitBoxD>, java.io.Serializable {
     }
 
     public boolean intersects(NHitBoxD other, boolean includeBorder) {
+        if (ortho && other.ortho) {
+            return overlapsAxisAligned(c[0].x, c[0].y, c[2].x, c[2].y, other.c[0].x, other.c[0].y, other.c[2].x, other.c[2].y, includeBorder);
+        }
+
         for (int i = 0; i < 4; i++) {
-            Coord2d edge = c[(i + 1) % 4].sub(c[i]);
-            Coord2d axis = Coord2d.of(-edge.y, edge.x);
-            if (isSeparated(axis, c, other.c, includeBorder))
+            double axisX = -(c[(i + 1) % 4].y - c[i].y);
+            double axisY = c[(i + 1) % 4].x - c[i].x;
+            if (isSeparated(axisX, axisY, c, other.c, includeBorder))
                 return false;
         }
 
         for (int i = 0; i < 4; i++) {
-            Coord2d edge = other.c[(i + 1) % 4].sub(other.c[i]);
-            Coord2d axis = Coord2d.of(-edge.y, edge.x);
-            if (isSeparated(axis, c, other.c, includeBorder))
+            double axisX = -(other.c[(i + 1) % 4].y - other.c[i].y);
+            double axisY = other.c[(i + 1) % 4].x - other.c[i].x;
+            if (isSeparated(axisX, axisY, c, other.c, includeBorder))
                 return false;
         }
 
         return true;
     }
 
-    private static boolean isSeparated(Coord2d axis, Coord2d[] first, Coord2d[] second, boolean includeBorder) {
-        if (axis.x == 0 && axis.y == 0)
+    public boolean intersectsAxisAlignedRect(double minX, double minY, double maxX, double maxY, boolean includeBorder) {
+        double rectMinX = Math.min(minX, maxX);
+        double rectMinY = Math.min(minY, maxY);
+        double rectMaxX = Math.max(minX, maxX);
+        double rectMaxY = Math.max(minY, maxY);
+
+        if (ortho) {
+            return overlapsAxisAligned(c[0].x, c[0].y, c[2].x, c[2].y, rectMinX, rectMinY, rectMaxX, rectMaxY, includeBorder);
+        }
+
+        for (int i = 0; i < 4; i++) {
+            double axisX = -(c[(i + 1) % 4].y - c[i].y);
+            double axisY = c[(i + 1) % 4].x - c[i].x;
+            if (isSeparated(axisX, axisY, c, rectMinX, rectMinY, rectMaxX, rectMaxY, includeBorder))
+                return false;
+        }
+
+        if (isRangeSeparated(minCornerX(c), maxCornerX(c), rectMinX, rectMaxX, includeBorder))
+            return false;
+        return !isRangeSeparated(minCornerY(c), maxCornerY(c), rectMinY, rectMaxY, includeBorder);
+    }
+
+    private static boolean overlapsAxisAligned(double firstMinX, double firstMinY, double firstMaxX, double firstMaxY,
+                                              double secondMinX, double secondMinY, double secondMaxX, double secondMaxY,
+                                              boolean includeBorder) {
+        double aMinX = Math.min(firstMinX, firstMaxX);
+        double aMinY = Math.min(firstMinY, firstMaxY);
+        double aMaxX = Math.max(firstMinX, firstMaxX);
+        double aMaxY = Math.max(firstMinY, firstMaxY);
+        double bMinX = Math.min(secondMinX, secondMaxX);
+        double bMinY = Math.min(secondMinY, secondMaxY);
+        double bMaxX = Math.max(secondMinX, secondMaxX);
+        double bMaxY = Math.max(secondMinY, secondMaxY);
+
+        return !isRangeSeparated(aMinX, aMaxX, bMinX, bMaxX, includeBorder) &&
+                !isRangeSeparated(aMinY, aMaxY, bMinY, bMaxY, includeBorder);
+    }
+
+    private static boolean isSeparated(double axisX, double axisY, Coord2d[] first, Coord2d[] second, boolean includeBorder) {
+        if (axisX == 0 && axisY == 0)
             return false;
 
         double firstMin = Double.MAX_VALUE;
         double firstMax = -Double.MAX_VALUE;
         for (Coord2d corner : first) {
-            double projection = corner.dot(axis);
+            double projection = corner.x * axisX + corner.y * axisY;
             firstMin = Math.min(firstMin, projection);
             firstMax = Math.max(firstMax, projection);
         }
@@ -321,13 +331,69 @@ public class NHitBoxD implements Comparable<NHitBoxD>, java.io.Serializable {
         double secondMin = Double.MAX_VALUE;
         double secondMax = -Double.MAX_VALUE;
         for (Coord2d corner : second) {
-            double projection = corner.dot(axis);
+            double projection = corner.x * axisX + corner.y * axisY;
             secondMin = Math.min(secondMin, projection);
             secondMax = Math.max(secondMax, projection);
         }
 
+        return isRangeSeparated(firstMin, firstMax, secondMin, secondMax, includeBorder);
+    }
+
+    private static boolean isSeparated(double axisX, double axisY, Coord2d[] first,
+                                       double rectMinX, double rectMinY, double rectMaxX, double rectMaxY,
+                                       boolean includeBorder) {
+        if (axisX == 0 && axisY == 0)
+            return false;
+
+        double firstMin = Double.MAX_VALUE;
+        double firstMax = -Double.MAX_VALUE;
+        for (Coord2d corner : first) {
+            double projection = corner.x * axisX + corner.y * axisY;
+            firstMin = Math.min(firstMin, projection);
+            firstMax = Math.max(firstMax, projection);
+        }
+
+        double secondA = rectMinX * axisX + rectMinY * axisY;
+        double secondB = rectMaxX * axisX + rectMinY * axisY;
+        double secondC = rectMaxX * axisX + rectMaxY * axisY;
+        double secondD = rectMinX * axisX + rectMaxY * axisY;
+        double secondMin = Math.min(Math.min(secondA, secondB), Math.min(secondC, secondD));
+        double secondMax = Math.max(Math.max(secondA, secondB), Math.max(secondC, secondD));
+
+        return isRangeSeparated(firstMin, firstMax, secondMin, secondMax, includeBorder);
+    }
+
+    private static boolean isRangeSeparated(double firstMin, double firstMax, double secondMin, double secondMax, boolean includeBorder) {
         if (includeBorder)
             return firstMax < secondMin || secondMax < firstMin;
         return firstMax <= secondMin || secondMax <= firstMin;
+    }
+
+    private static double minCornerX(Coord2d[] corners) {
+        double min = Double.MAX_VALUE;
+        for (Coord2d corner : corners)
+            min = Math.min(min, corner.x);
+        return min;
+    }
+
+    private static double maxCornerX(Coord2d[] corners) {
+        double max = -Double.MAX_VALUE;
+        for (Coord2d corner : corners)
+            max = Math.max(max, corner.x);
+        return max;
+    }
+
+    private static double minCornerY(Coord2d[] corners) {
+        double min = Double.MAX_VALUE;
+        for (Coord2d corner : corners)
+            min = Math.min(min, corner.y);
+        return min;
+    }
+
+    private static double maxCornerY(Coord2d[] corners) {
+        double max = -Double.MAX_VALUE;
+        for (Coord2d corner : corners)
+            max = Math.max(max, corner.y);
+        return max;
     }
 }

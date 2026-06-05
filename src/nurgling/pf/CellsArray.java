@@ -44,6 +44,6 @@ public class CellsArray {
         Coord2d center = Utils.pfGridToWorld(cell);
         Coord2d ul = center.sub(Utils.CELL_HALFSZ);
         Coord2d br = center.add(Utils.CELL_HALFSZ);
-        return hitBox.intersects(new NHitBoxD(ul, br), true);
+        return hitBox.intersectsAxisAlignedRect(ul.x, ul.y, br.x, br.y, true);
     }
 }
