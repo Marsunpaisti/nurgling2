@@ -9,6 +9,7 @@ public class CellsArrayRasterizationTest {
         pfCellsUsePeriodicSixUnitPlayerGrid();
         worldCoordinatesSnapToNearestPeriodicPfCell();
         pfCellsUseSixUnitPlayerFootprint();
+        sixUnitCellsAvoidNeighborTileSliverBleed();
         cupboardUsesTenByTenHitbox();
         asymmetricHitboxesUseMeasuredLocalOffset();
         herbalistTableUsesMeasuredHitbox();
@@ -45,6 +46,18 @@ public class CellsArrayRasterizationTest {
     private static void pfCellsUseSixUnitPlayerFootprint() {
         assertClose(Utils.CELL_HALFSZ.x, 3.0, "PF cell half width");
         assertClose(Utils.CELL_HALFSZ.y, 3.0, "PF cell half height");
+    }
+
+    private static void sixUnitCellsAvoidNeighborTileSliverBleed() {
+        NHitBox hitBox = new NHitBox(new Coord2d(11.0, -3.0), new Coord2d(17.0, 3.0), true);
+        CellsArray cells = new CellsArray(hitBox, 0, Coord2d.of(0.0, 0.0));
+
+        if (hasBlockedCellAt(cells, 3, 0)) {
+            throw new AssertionError("PF cell centered at x=8 must not be blocked by a tiny neighboring-tile sliver");
+        }
+        if (!hasBlockedCellAt(cells, 4, 0)) {
+            throw new AssertionError("PF cell centered at x=11 must still detect the neighboring obstacle");
+        }
     }
 
     private static void cupboardUsesTenByTenHitbox() {
