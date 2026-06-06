@@ -44,19 +44,20 @@ public class ProcessCheeseOrderInBatches implements Action {
         CheeseOrder order = findOrderByType(cheeseType);
         if (order == null) return Results.ERROR("No order found for " + cheeseType);
         
-        // Find the current step that needs work
-        CheeseOrder.StepStatus currentStep = getCurrentStep(order);
-        if (currentStep == null) {
+        // Curd creation should not be blocked by later active aging steps in the same order.
+        CheeseOrder.StepStatus startStep = getStartStep(order);
+        if (startStep == null) {
             return Results.SUCCESS();
         }
         
         // Determine how much work we can actually do in batches
-        int totalWorkNeeded = Math.min(totalQuantity, currentStep.left);
+        int totalWorkNeeded = Math.min(totalQuantity, startStep.left);
         
         // Calculate available rack space for this cheese type
         int totalRackSpace = calculateAvailableRackSpace(chain, rackCapacity);
 
         if(totalRackSpace == 0) {
+            gui.msg("No rack space for " + cheeseType + " curd creation in " + chain.get(1).place);
             return Results.SUCCESS();
         }
 
@@ -69,11 +70,12 @@ public class ProcessCheeseOrderInBatches implements Action {
             int maxBatchSize = Math.min(inventoryCapacity, totalWorkNeeded - totalProcessed);
             maxBatchSize = Math.min(maxBatchSize, totalRackSpace);
 
-            int actualProcessed = processBatch(gui, order, currentStep, chain, maxBatchSize);
+            int actualProcessed = processBatch(gui, order, startStep, chain, maxBatchSize);
             totalProcessed += actualProcessed;
             
             // If we couldn't process anything, break to avoid infinite loop
             if (actualProcessed == 0) {
+                gui.msg("No " + startStep.name + " trays created for " + cheeseType + " (missing curds, trays, or storage area)");
                 break;
             }
         }
@@ -132,11 +134,11 @@ public class ProcessCheeseOrderInBatches implements Action {
     }
     
     /**
-     * Get the current step that needs work
+     * Get pending start work for curd creation.
      */
-    private CheeseOrder.StepStatus getCurrentStep(CheeseOrder order) {
+    private CheeseOrder.StepStatus getStartStep(CheeseOrder order) {
         for (CheeseOrder.StepStatus step : order.getStatus()) {
-            if (step.left > 0) {
+            if (step.place.equals("start") && step.left > 0) {
                 return step;
             }
         }
