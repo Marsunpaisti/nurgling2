@@ -224,11 +224,32 @@ public class ChunkNavPlanner {
                 walkable = cornerLocal; // last resort fallback
             }
 
+            NGameUI gui = NUtils.getGameUI();
+            if (gui != null) {
+                gui.msg("[ChunkNav] area=" + area.name + "#" + area.id +
+                        " corner=" + cornerIndex +
+                        " startGrid=" + startChunkId +
+                        " startLocal=" + playerLocal +
+                        " targetGrid=" + gridId +
+                        " areaLocal=" + varea.area +
+                        " cornerLocal=" + cornerLocal +
+                        " walkableTarget=" + walkable);
+            }
+
             // Use unified pathfinder
             UnifiedTilePathfinder.UnifiedPath unifiedPath = unifiedPathfinder.findPath(
                 startChunkId, playerLocal,
                 gridId, walkable
             );
+
+            if (gui != null) {
+                gui.msg("[ChunkNav] result area=" + area.name + "#" + area.id +
+                        " corner=" + cornerIndex +
+                        " targetGrid=" + gridId +
+                        " target=" + walkable +
+                        " reachable=" + (unifiedPath != null && unifiedPath.reachable) +
+                        " steps=" + (unifiedPath != null ? unifiedPath.steps.size() : -1));
+            }
 
             if (unifiedPath != null && unifiedPath.reachable) {
                 ChunkPath path = new ChunkPath();

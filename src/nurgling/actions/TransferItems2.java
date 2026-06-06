@@ -85,6 +85,7 @@ public class TransferItems2 implements Action
     @Override
     public Results run(NGameUI gui) throws InterruptedException
     {
+        gui.msg("[TransferItems2] start items=" + items);
         // Step 1: Sort items into priority/non-priority (preserve existing orderList behavior)
         ArrayList<String> before = new ArrayList<>();
         ArrayList<String> after = new ArrayList<>();
@@ -112,8 +113,11 @@ public class TransferItems2 implements Action
         for(String item : resitems) {
             TreeMap<Double,String> areas = cnt.getOutAreas(item);
             if(areas != null) {
+                gui.msg("[TransferItems2] candidate outputs item=" + item + " thresholds=" + areas);
                 for (Double quality : areas.descendingKeySet()) {
-                    if (!getItemsExactMatch(item, quality).isEmpty()) {
+                    int matchingItems = getItemsExactMatch(item, quality).size();
+                    gui.msg("[TransferItems2] inventory matches item=" + item + " q>=" + quality + " count=" + matchingItems + " area=" + areas.get(quality));
+                    if (matchingItems > 0) {
                         String areaId = areas.get(quality);
                         ThresholdGroup group = thresholdGroups.computeIfAbsent(quality, ThresholdGroup::new);
                         group.itemsByArea.computeIfAbsent(areaId, k -> new ArrayList<>())
@@ -121,7 +125,11 @@ public class TransferItems2 implements Action
                     }
                 }
             }
+            else {
+                gui.msg("[TransferItems2] no output areas for item=" + item);
+            }
         }
+        gui.msg("[TransferItems2] threshold groups=" + thresholdGroups.keySet());
 
         // Step 3: Process each threshold group in order (highest first)
         for (ThresholdGroup group : thresholdGroups.values()) {
@@ -129,6 +137,7 @@ public class TransferItems2 implements Action
             if (group.threshold > 1) {
                 // Items with thresholds: process in arbitrary order (no optimization needed)
                 for (String areaId : group.itemsByArea.keySet()) {
+                    gui.msg("[TransferItems2] process threshold=" + group.threshold + " area=" + areaId + " transfers=" + group.itemsByArea.get(areaId).size());
                     processAreaTransfers(areaId, group.itemsByArea.get(areaId), gui);
                 }
             } else {
@@ -137,12 +146,14 @@ public class TransferItems2 implements Action
                 while (!remaining.isEmpty()) {
                     String nearestAreaId = findNearestArea(remaining.keySet(), gui);
                     if (nearestAreaId == null) break;
+                    gui.msg("[TransferItems2] process nearest area=" + nearestAreaId + " transfers=" + remaining.get(nearestAreaId).size());
                     processAreaTransfers(nearestAreaId, remaining.get(nearestAreaId), gui);
                     remaining.remove(nearestAreaId);
                 }
             }
         }
 
+        gui.msg("[TransferItems2] complete");
         return Results.SUCCESS();
     }
 
@@ -152,24 +163,34 @@ public class TransferItems2 implements Action
      */
     private void processAreaTransfers(String areaId, List<ItemTransfer> itemsForArea, NGameUI gui) throws InterruptedException {
         for (ItemTransfer itemTransfer : itemsForArea) {
+            gui.msg("[TransferItems2] resolve storages area=" + areaId + " item=" + itemTransfer.itemName + " q=" + itemTransfer.quality);
             ArrayList<NContext.ObjectStorage> storages = cnt.getOutStorages(itemTransfer.itemName, itemTransfer.quality);
+            gui.msg("[TransferItems2] storages area=" + areaId + " item=" + itemTransfer.itemName + " count=" + storages.size());
             for (NContext.ObjectStorage output : storages) {
                 if (output instanceof NContext.Pile) {
+                    gui.msg("[TransferItems2] transfer to pile area=" + areaId + " item=" + itemTransfer.itemName +
+                            " pile=" + (((NContext.Pile) output).pile != null ? ((NContext.Pile) output).pile.id : "new/none"));
                     new TransferToPiles(cnt.getRCArea(areaId), itemTransfer.itemName,
                         (int)itemTransfer.quality).run(gui);
                 }
                 if (output instanceof Container) {
                     TreeMap<Double,String> areas = cnt.getOutAreas(itemTransfer.itemName);
+                    gui.msg("[TransferItems2] transfer to container area=" + areaId + " item=" + itemTransfer.itemName +
+                            " cap=" + ((Container) output).cap + " hash=" + ((Container) output).gobHash);
                     TransferToContainer ttc = new TransferToContainer((Container) output, itemTransfer.itemName,
                         (int)itemTransfer.quality);
                     ttc.needsSorting = areas != null && areas.size() > 1;
                     ttc.run(gui);
                 }
                 if (output instanceof NContext.Barrel) {
+                    gui.msg("[TransferItems2] transfer to barrel area=" + areaId + " item=" + itemTransfer.itemName +
+                            " barrel=" + ((NContext.Barrel) output).barrel);
                     new TransferToBarrel(Finder.findGob(((NContext.Barrel) output).barrel),
                         itemTransfer.itemName).run(gui);
                 }
                 if (output instanceof NContext.Barter) {
+                    gui.msg("[TransferItems2] transfer to barter area=" + areaId + " item=" + itemTransfer.itemName +
+                            " barter=" + ((NContext.Barter) output).barter + " chest=" + ((NContext.Barter) output).chest);
                     new TransferToBarter((NContext.Barter) output,
                         new NAlias(itemTransfer.itemName), (int) itemTransfer.quality).run(gui);
                 }
@@ -187,6 +208,7 @@ public class TransferItems2 implements Action
 
         for (String areaId : areaIds) {
             double dist = cnt.getDistanceToAreaById(areaId, gui);
+            gui.msg("[TransferItems2] distance candidate area=" + areaId + " dist=" + dist);
             if (dist < minDist) {
                 minDist = dist;
                 nearest = areaId;
@@ -196,7 +218,10 @@ public class TransferItems2 implements Action
         // Fallback if no path found for any area
         if (nearest == null && !areaIds.isEmpty()) {
             nearest = areaIds.iterator().next();
+            gui.msg("[TransferItems2] no reachable area by distance; fallback area=" + nearest);
         }
+
+        gui.msg("[TransferItems2] nearest area=" + nearest + " dist=" + minDist);
 
         return nearest;
     }

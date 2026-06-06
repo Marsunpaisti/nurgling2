@@ -156,6 +156,10 @@ public class AreaNavigationHelper {
                 throw new InterruptedException();
             }
             ChunkPath path = chunkNav.planToAreaCorner(area, i);
+            if (NUtils.getGameUI() != null) {
+                NUtils.getGameUI().msg("[AreaCorner] area=" + area.name + "#" + area.id + " corner=" + i +
+                        " path=" + (path != null ? ("cost=" + path.totalCost + " waypoints=" + path.size()) : "null"));
+            }
             if (path != null && path.totalCost < bestCost) {
                 bestPath = path;
                 bestCost = path.totalCost;
@@ -165,6 +169,9 @@ public class AreaNavigationHelper {
         if (bestPath == null) {
             if (Thread.currentThread().isInterrupted()) {
                 throw new InterruptedException();
+            }
+            if (NUtils.getGameUI() != null) {
+                NUtils.getGameUI().msg("[AreaCorner] no corner path; fallback planToArea area=" + area.name + "#" + area.id);
             }
             return chunkNav.planToArea(area);
         }
