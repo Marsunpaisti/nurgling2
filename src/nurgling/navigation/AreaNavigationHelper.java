@@ -7,6 +7,7 @@ import nurgling.NUI;
 import nurgling.NUtils;
 import nurgling.actions.PathFinder;
 import nurgling.areas.NArea;
+import nurgling.pf.Utils;
 import nurgling.sessions.ThreadLocalUI;
 
 /**
@@ -16,11 +17,13 @@ import nurgling.sessions.ThreadLocalUI;
 public class AreaNavigationHelper {
     
     /**
-     * Get the 4 corners of an area as Coord2d array.
+     * Get the 4 local-PF target points near an area's corners.
+     * Targets are inset by the player footprint half-size so exact area borders
+     * shared with walls or blocked terrain are not selected as destination cells.
      * First tries live getRCArea(), then falls back to stored ChunkNav data.
-     * @return array of 4 corners [top-left, bottom-right, bottom-left, top-right], or null if area bounds unavailable
+     * @return array of 4 targets [top-left, bottom-right, bottom-left, top-right], or null if area bounds unavailable
      */
-    public static Coord2d[] getAreaCorners(NArea area) {
+    public static Coord2d[] getAreaReachTargets(NArea area) {
         if (area == null) {
             return null;
         }
@@ -37,14 +40,27 @@ public class AreaNavigationHelper {
             return null;
         }
         
+        return getAreaReachTargets(rcArea);
+    }
+
+    static Coord2d[] getAreaReachTargets(Pair<Coord2d, Coord2d> rcArea) {
+        double minX = Math.min(rcArea.a.x, rcArea.b.x);
+        double maxX = Math.max(rcArea.a.x, rcArea.b.x);
+        double minY = Math.min(rcArea.a.y, rcArea.b.y);
+        double maxY = Math.max(rcArea.a.y, rcArea.b.y);
+        double left = minX + Utils.CELL_HALFSZ.x;
+        double right = maxX - Utils.CELL_HALFSZ.x;
+        double top = minY + Utils.CELL_HALFSZ.y;
+        double bottom = maxY - Utils.CELL_HALFSZ.y;
+
         return new Coord2d[] {
-            rcArea.a,                                        // top-left
-            rcArea.b,                                        // bottom-right
-            Coord2d.of(rcArea.a.x, rcArea.b.y),             // bottom-left
-            Coord2d.of(rcArea.b.x, rcArea.a.y)              // top-right
+            Coord2d.of(left, top),
+            Coord2d.of(right, bottom),
+            Coord2d.of(left, bottom),
+            Coord2d.of(right, top)
         };
     }
-    
+
     /**
      * Get area bounds from stored ChunkNav data when area is not visible.
      * Uses worldTileOrigin from recorded chunks to calculate world coordinates.
@@ -195,13 +211,7 @@ public class AreaNavigationHelper {
             return false;
         }
         
-        // Get 4 corners from live data
-        Coord2d[] corners = new Coord2d[] {
-            rcArea.a,                                        // top-left
-            rcArea.b,                                        // bottom-right
-            Coord2d.of(rcArea.a.x, rcArea.b.y),             // bottom-left
-            Coord2d.of(rcArea.b.x, rcArea.a.y)              // top-right
-        };
+        Coord2d[] corners = getAreaReachTargets(rcArea);
 
         // Capture current UI for thread-local binding in spawned threads
         final NUI boundUI = NUtils.getUI();
@@ -258,13 +268,7 @@ public class AreaNavigationHelper {
             return null;
         }
 
-        // Get 4 corners from live data
-        Coord2d[] corners = new Coord2d[] {
-            rcArea.a,                                        // top-left
-            rcArea.b,                                        // bottom-right
-            Coord2d.of(rcArea.a.x, rcArea.b.y),             // bottom-left
-            Coord2d.of(rcArea.b.x, rcArea.a.y)              // top-right
-        };
+        Coord2d[] corners = getAreaReachTargets(rcArea);
 
         // Capture current UI for thread-local binding in spawned threads
         final NUI boundUI = NUtils.getUI();
