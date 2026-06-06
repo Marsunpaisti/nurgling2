@@ -136,46 +136,26 @@ public class AreaNavigationHelper {
     
     /**
      * Find the shortest path to any of the 4 corners of an area.
-     * Plans paths to all corners in parallel and returns the shortest one.
+     * Plans corners sequentially because ChunkNavPlanner/UnifiedTilePathfinder is shared.
      * Uses planToAreaCorner which works correctly across different layers/areas.
      */
     public static ChunkPath findShortestPathToAreaCorners(NArea area, ChunkNavManager chunkNav) throws InterruptedException {
         if (area == null || area.space == null || area.space.space == null || area.space.space.isEmpty()) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw new InterruptedException();
+            }
             return chunkNav.planToArea(area);
         }
 
-        // Capture current UI for thread-local binding in spawned threads
-        final NUI boundUI = NUtils.getUI();
-
-        // Plan paths to all 4 corners in parallel using planToAreaCorner (gridId + local coords)
-        final ChunkPath[] paths = new ChunkPath[4];
-        Thread[] threads = new Thread[4];
-
-        for (int i = 0; i < 4; i++) {
-            final int idx = i;
-            threads[i] = new Thread(() -> {
-                // Bind thread-local UI so planner uses correct session
-                ThreadLocalUI.set(boundUI);
-                try {
-                    paths[idx] = chunkNav.planToAreaCorner(area, idx);
-                } finally {
-                    ThreadLocalUI.clear();
-                }
-            });
-            threads[i].start();
-        }
-        
-        // Wait for all threads
-        for (Thread t : threads) {
-            t.join();
-        }
-        
         // Find the shortest path
         ChunkPath bestPath = null;
         float bestCost = Float.MAX_VALUE;
 
         for (int i = 0; i < 4; i++) {
-            ChunkPath path = paths[i];
+            if (Thread.currentThread().isInterrupted()) {
+                throw new InterruptedException();
+            }
+            ChunkPath path = chunkNav.planToAreaCorner(area, i);
             if (path != null && path.totalCost < bestCost) {
                 bestPath = path;
                 bestCost = path.totalCost;
@@ -183,6 +163,9 @@ public class AreaNavigationHelper {
         }
 
         if (bestPath == null) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw new InterruptedException();
+            }
             return chunkNav.planToArea(area);
         }
 

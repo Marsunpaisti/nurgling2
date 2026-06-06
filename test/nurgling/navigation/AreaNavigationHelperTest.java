@@ -1,12 +1,18 @@
 package nurgling.navigation;
 
 import haven.Coord2d;
+import haven.Area;
+import haven.Coord;
 import haven.Pair;
 import nurgling.areas.NArea;
+
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class AreaNavigationHelperTest {
     public static void main(String[] args) {
         localPfAreaTargetsAreInsetFromTileBorders();
+        areaCornerPlanningDoesNotRunSharedChunkPlannerConcurrently();
+        interruptedAreaCornerPlanningDoesNotStartFallbackPlan();
     }
 
     private static void localPfAreaTargetsAreInsetFromTileBorders() {
@@ -23,6 +29,83 @@ public class AreaNavigationHelperTest {
     private static void assertCoord2d(Coord2d actual, double expectedX, double expectedY, String label) {
         if (Math.abs(actual.x - expectedX) > 0.0001 || Math.abs(actual.y - expectedY) > 0.0001) {
             throw new AssertionError(label + ": expected (" + expectedX + ", " + expectedY + "), got " + actual);
+        }
+    }
+
+    private static void areaCornerPlanningDoesNotRunSharedChunkPlannerConcurrently() {
+        NArea area = new NArea("test");
+        area.space = new NArea.Space();
+        area.space.space.put(1L, new NArea.VArea(new Area(new Coord(0, 0), new Coord(1, 1))));
+        CountingChunkNavManager chunkNav = new CountingChunkNavManager();
+
+        try {
+            AreaNavigationHelper.findShortestPathToAreaCorners(area, chunkNav);
+        } catch (InterruptedException e) {
+            throw new AssertionError("test should not be interrupted", e);
+        }
+
+        if (chunkNav.maxConcurrent.get() > 1) {
+            throw new AssertionError("area corner planning must not call shared ChunkNavPlanner concurrently; max concurrent calls=" + chunkNav.maxConcurrent.get());
+        }
+    }
+
+    private static class CountingChunkNavManager extends ChunkNavManager {
+        private final AtomicInteger active = new AtomicInteger(0);
+        private final AtomicInteger maxConcurrent = new AtomicInteger(0);
+
+        @Override
+        public ChunkPath planToAreaCorner(NArea area, int cornerIndex) {
+            int now = active.incrementAndGet();
+            maxConcurrent.updateAndGet(old -> Math.max(old, now));
+            try {
+                Thread.sleep(50);
+                ChunkPath path = new ChunkPath();
+                path.totalCost = cornerIndex;
+                return path;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return null;
+            } finally {
+                active.decrementAndGet();
+            }
+        }
+    }
+
+    private static void interruptedAreaCornerPlanningDoesNotStartFallbackPlan() {
+        NArea area = new NArea("test");
+        area.space = new NArea.Space();
+        area.space.space.put(1L, new NArea.VArea(new Area(new Coord(0, 0), new Coord(1, 1))));
+        InterruptingChunkNavManager chunkNav = new InterruptingChunkNavManager();
+
+        try {
+            AreaNavigationHelper.findShortestPathToAreaCorners(area, chunkNav);
+            throw new AssertionError("interrupted planning must throw InterruptedException");
+        } catch (InterruptedException expected) {
+            // Expected.
+        } finally {
+            Thread.interrupted();
+        }
+
+        if (chunkNav.fallbackPlans.get() != 0) {
+            throw new AssertionError("interrupted area corner planning must not start fallback planToArea; calls=" + chunkNav.fallbackPlans.get());
+        }
+    }
+
+    private static class InterruptingChunkNavManager extends ChunkNavManager {
+        private final AtomicInteger fallbackPlans = new AtomicInteger(0);
+
+        @Override
+        public ChunkPath planToAreaCorner(NArea area, int cornerIndex) {
+            if (cornerIndex == 3) {
+                Thread.currentThread().interrupt();
+            }
+            return null;
+        }
+
+        @Override
+        public ChunkPath planToArea(NArea area) {
+            fallbackPlans.incrementAndGet();
+            return new ChunkPath();
         }
     }
 
