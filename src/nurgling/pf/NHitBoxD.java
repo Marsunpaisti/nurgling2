@@ -26,7 +26,7 @@ public class NHitBoxD implements Comparable<NHitBoxD>, java.io.Serializable {
     final boolean primitive;
 
     public NHitBoxD(Coord rc) {
-        this(MCache.tileqsz.sub(MCache.tilehsz), MCache.tileqsz, Utils.pfGridToWorld(rc), 0, true);
+        this(Utils.pfGridToWorld(rc).sub(Utils.CELL_HALFSZ), Utils.pfGridToWorld(rc).add(Utils.CELL_HALFSZ), null, 0, true);
     }
 
     public NHitBoxD(Coord2d ul) {
@@ -40,7 +40,7 @@ public class NHitBoxD implements Comparable<NHitBoxD>, java.io.Serializable {
     }
 
     public NHitBoxD(Coord ul, Coord br) {
-        this(Utils.pfGridToWorld(ul).sub(MCache.tileqsz), Utils.pfGridToWorld(br).add(MCache.tileqsz));
+        this(Utils.pfGridToWorld(ul).sub(Utils.CELL_HALFSZ), Utils.pfGridToWorld(br).add(Utils.CELL_HALFSZ));
     }
 
     public NHitBoxD(Coord2d ul, Coord2d br, Coord2d r) {

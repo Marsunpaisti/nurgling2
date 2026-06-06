@@ -280,8 +280,8 @@ public class PathFinder implements Action {
                         ArrayList<Coord> best_poses = new ArrayList<>();
                         for (Coord coord : end_poses) {
                             Coord2d coord2d = Utils.pfGridToWorld(cells[coord.x][coord.y].pos);
-                            if (coord2d.x + MCache.tileqsz.x > tcoord.x && coord2d.x - MCache.tileqsz.x < tcoord.x ||
-                                    coord2d.y + MCache.tileqsz.y > tcoord.y && coord2d.y - MCache.tileqsz.y < tcoord.y)
+                            if (coord2d.x + Utils.CELL_HALFSZ.x > tcoord.x && coord2d.x - Utils.CELL_HALFSZ.x < tcoord.x ||
+                                    coord2d.y + Utils.CELL_HALFSZ.y > tcoord.y && coord2d.y - Utils.CELL_HALFSZ.y < tcoord.y)
                                 best_poses.add(coord);
                         }
                         if (!best_poses.isEmpty())

@@ -6,7 +6,10 @@ import nurgling.NHitBox;
 
 public class CellsArrayRasterizationTest {
     public static void main(String[] args) {
-        pfCellsAreCenteredEveryQuarterTile();
+        pfCellsUsePeriodicSixUnitPlayerGrid();
+        worldCoordinatesSnapToNearestPeriodicPfCell();
+        pfCellsUseSixUnitPlayerFootprint();
+        sixUnitCellsAvoidNeighborTileSliverBleed();
         cupboardUsesTenByTenHitbox();
         asymmetricHitboxesUseMeasuredLocalOffset();
         herbalistTableUsesMeasuredHitbox();
@@ -14,11 +17,47 @@ public class CellsArrayRasterizationTest {
         keepsRotatedThinHitboxesRepresented();
     }
 
-    private static void pfCellsAreCenteredEveryQuarterTile() {
-        Coord2d firstStep = Utils.pfGridToWorld(new Coord(1, 1));
+    private static void pfCellsUsePeriodicSixUnitPlayerGrid() {
+        assertCoord2d(Utils.pfGridToWorld(new Coord(-4, 0)), -11.0, 0.0, "PF grid -4,0");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(-3, 0)), -8.0, 0.0, "PF grid -3,0");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(-2, 0)), -5.5, 0.0, "PF grid -2,0");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(-1, 0)), -3.0, 0.0, "PF grid -1,0");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(0, 0)), 0.0, 0.0, "PF grid 0,0");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(1, 1)), 3.0, 3.0, "PF grid 1,1");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(2, 2)), 5.5, 5.5, "PF grid 2,2");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(3, 3)), 8.0, 8.0, "PF grid 3,3");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(4, 4)), 11.0, 11.0, "PF grid 4,4");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(5, 5)), 14.0, 14.0, "PF grid 5,5");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(6, 6)), 16.5, 16.5, "PF grid 6,6");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(7, 7)), 19.0, 19.0, "PF grid 7,7");
+        assertCoord2d(Utils.pfGridToWorld(new Coord(8, 8)), 22.0, 22.0, "PF grid 8,8");
+    }
 
-        assertClose(firstStep.x, 2.75, "PF grid x step");
-        assertClose(firstStep.y, 2.75, "PF grid y step");
+    private static void worldCoordinatesSnapToNearestPeriodicPfCell() {
+        assertCoord(Utils.toPfGrid(new Coord2d(0.0, 0.0)), 0, 0, "snap exact origin");
+        assertCoord(Utils.toPfGrid(new Coord2d(2.9, 3.1)), 1, 1, "snap near offset 3");
+        assertCoord(Utils.toPfGrid(new Coord2d(5.6, 5.4)), 2, 2, "snap near tile center");
+        assertCoord(Utils.toPfGrid(new Coord2d(8.1, 7.9)), 3, 3, "snap near offset 8");
+        assertCoord(Utils.toPfGrid(new Coord2d(10.9, 11.1)), 4, 4, "snap near next tile edge");
+        assertCoord(Utils.toPfGrid(new Coord2d(-2.9, -3.1)), -1, -1, "snap negative offset -3");
+        assertCoord(Utils.toPfGrid(new Coord2d(-5.4, -5.6)), -2, -2, "snap negative center");
+    }
+
+    private static void pfCellsUseSixUnitPlayerFootprint() {
+        assertClose(Utils.CELL_HALFSZ.x, 3.0, "PF cell half width");
+        assertClose(Utils.CELL_HALFSZ.y, 3.0, "PF cell half height");
+    }
+
+    private static void sixUnitCellsAvoidNeighborTileSliverBleed() {
+        NHitBox hitBox = new NHitBox(new Coord2d(11.0, -3.0), new Coord2d(17.0, 3.0), true);
+        CellsArray cells = new CellsArray(hitBox, 0, Coord2d.of(0.0, 0.0));
+
+        if (hasBlockedCellAt(cells, 3, 0)) {
+            throw new AssertionError("PF cell centered at x=8 must not be blocked by a tiny neighboring-tile sliver");
+        }
+        if (!hasBlockedCellAt(cells, 4, 0)) {
+            throw new AssertionError("PF cell centered at x=11 must still detect the neighboring obstacle");
+        }
     }
 
     private static void cupboardUsesTenByTenHitbox() {
@@ -83,6 +122,17 @@ public class CellsArrayRasterizationTest {
             }
         }
         return blocked;
+    }
+
+    private static void assertCoord(Coord actual, int expectedX, int expectedY, String label) {
+        if (actual.x != expectedX || actual.y != expectedY) {
+            throw new AssertionError(label + ": expected (" + expectedX + ", " + expectedY + "), got " + actual);
+        }
+    }
+
+    private static void assertCoord2d(Coord2d actual, double expectedX, double expectedY, String label) {
+        assertClose(actual.x, expectedX, label + " x");
+        assertClose(actual.y, expectedY, label + " y");
     }
 
     private static void assertClose(double actual, double expected, String label) {

@@ -5,17 +5,78 @@ import nurgling.NUtils;
 
 public class Utils
 {
-    public static final Coord2d GRID_STEP = MCache.tileqsz;
-    public static final Coord2d CELL_HALFSZ = MCache.tileqsz;
+    public static final Coord2d CELL_HALFSZ = Coord2d.of(3.0, 3.0);
+    public static final int PF_STEPS_PER_TILE = 4;
+
+    private static final double[] PF_TILE_OFFSETS = {0.0, 3.0, 5.5, 8.0};
+    private static final double MIN_PF_STEP = 2.5;
+    static final double EPS = 0.000001;
 
     public static Coord toPfGrid(Coord2d coord)
     {
-        return coord.div(GRID_STEP).round();
+        return new Coord(worldAxisToPf(coord.x), worldAxisToPf(coord.y));
     }
 
     public static Coord2d pfGridToWorld(Coord coord)
     {
-        return coord.mul(GRID_STEP);
+        return Coord2d.of(pfAxisToWorld(coord.x), pfAxisToWorld(coord.y));
+    }
+
+    public static double pfAxisToWorld(int index)
+    {
+        int tile = Math.floorDiv(index, PF_STEPS_PER_TILE);
+        int offset = Math.floorMod(index, PF_STEPS_PER_TILE);
+        return tile * MCache.tilesz.x + PF_TILE_OFFSETS[offset];
+    }
+
+    public static int worldAxisToPf(double coord)
+    {
+        int tile = (int) Math.floor(coord / MCache.tilesz.x);
+        int best = tile * PF_STEPS_PER_TILE;
+        double bestDist = Double.MAX_VALUE;
+
+        // Check adjacent tiles for coordinates near tile boundaries and negative coordinates.
+        for(int candidateTile = tile - 1; candidateTile <= tile + 1; candidateTile++) {
+            for(int offset = 0; offset < PF_STEPS_PER_TILE; offset++) {
+                int candidate = candidateTile * PF_STEPS_PER_TILE + offset;
+                double dist = Math.abs(pfAxisToWorld(candidate) - coord);
+                if(dist < bestDist) {
+                    bestDist = dist;
+                    best = candidate;
+                }
+            }
+        }
+
+        return best;
+    }
+
+    public static int firstPfAxisAtOrAfter(double coord)
+    {
+        int index = worldAxisToPf(coord);
+        while(pfAxisToWorld(index) < coord - EPS) {
+            index++;
+        }
+        while(pfAxisToWorld(index - 1) >= coord - EPS) {
+            index--;
+        }
+        return index;
+    }
+
+    public static int lastPfAxisAtOrBefore(double coord)
+    {
+        int index = worldAxisToPf(coord);
+        while(pfAxisToWorld(index) > coord + EPS) {
+            index--;
+        }
+        while(pfAxisToWorld(index + 1) <= coord + EPS) {
+            index++;
+        }
+        return index;
+    }
+
+    public static int maxPfStepsForWorldDistance(double distance)
+    {
+        return (int) Math.ceil(Math.abs(distance) / MIN_PF_STEP);
     }
 
     /**
