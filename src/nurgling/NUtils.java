@@ -77,6 +77,17 @@ public class NUtils
         return (NUI)UI.getInstance();
     }
 
+    public static boolean isDebugEnabled() {
+        NUI ui = getUI();
+        return ui != null && ui.core != null && ui.core.debug;
+    }
+
+    public static void debugMsg(NGameUI gui, String message) {
+        if (gui != null && isDebugEnabled()) {
+            gui.msg(message);
+        }
+    }
+
     public static String timestamp() {
         return new SimpleDateFormat("HH:mm").format(new Date());
     }
@@ -841,9 +852,7 @@ public class NUtils
     {
         if (area == null) return false;
         NGameUI currentGui = NUtils.getGameUI();
-        if (currentGui != null) {
-            currentGui.msg("[NavArea] start area=" + area.name + "#" + area.id + " visible=" + area.isVisible());
-        }
+        debugMsg(currentGui, "[NavArea] start area=" + area.name + "#" + area.id + " visible=" + area.isVisible());
 
         // Check if any corner of the area is reachable via local pathfinding.
         // If yes, walk onto a corner so callers can rely on the player actually
@@ -851,25 +860,21 @@ public class NUtils
         // verified getRCArea() != null, so checkHit is reliable here — skip the
         // walk when the player is already inside the area.
         boolean localReachable = nurgling.navigation.AreaNavigationHelper.isAreaReachableByLocalPF(area);
-        if (currentGui != null) {
-            currentGui.msg("[NavArea] localPF reachable=" + localReachable + " area=" + area.name + "#" + area.id);
-        }
+        debugMsg(currentGui, "[NavArea] localPF reachable=" + localReachable + " area=" + area.name + "#" + area.id);
         if (localReachable) {
             Gob player = player();
             if (player != null && !area.checkHit(player.rc)) {
                 Coord2d corner = nurgling.navigation.AreaNavigationHelper.findNearestReachableCorner(area);
                 if (corner != null) {
-                    if (currentGui != null) {
-                        currentGui.msg("[NavArea] local target=" + corner + " area=" + area.name + "#" + area.id);
-                    }
+                    debugMsg(currentGui, "[NavArea] local target=" + corner + " area=" + area.name + "#" + area.id);
                     new nurgling.actions.PathFinder(corner).run(getGameUI());
                 }
-                else if (currentGui != null) {
-                    currentGui.msg("[NavArea] local reachable but no target area=" + area.name + "#" + area.id);
+                else {
+                    debugMsg(currentGui, "[NavArea] local reachable but no target area=" + area.name + "#" + area.id);
                 }
             }
-            else if (currentGui != null) {
-                currentGui.msg("[NavArea] already inside area=" + area.name + "#" + area.id);
+            else {
+                debugMsg(currentGui, "[NavArea] already inside area=" + area.name + "#" + area.id);
             }
             return true;
         }
@@ -878,7 +883,7 @@ public class NUtils
         // Plan to all 4 corners in parallel and choose the shortest path
         // IMPORTANT: Capture GUI once and reuse to avoid multi-session issues
         if (currentGui == null || currentGui.map == null) return false;
-        currentGui.msg("[NavArea] using chunknav area=" + area.name + "#" + area.id);
+        debugMsg(currentGui, "[NavArea] using chunknav area=" + area.name + "#" + area.id);
 
         ChunkNavManager chunkNav = ((NMapView) currentGui.map).getChunkNavManager();
         if (chunkNav != null && chunkNav.isInitialized())
@@ -886,15 +891,15 @@ public class NUtils
             ChunkPath bestPath = nurgling.navigation.AreaNavigationHelper.findShortestPathToAreaCorners(area, chunkNav);
             if (bestPath != null)
             {
-                currentGui.msg("[NavArea] chunk path cost=" + bestPath.totalCost + " waypoints=" + bestPath.size() + " area=" + area.name + "#" + area.id);
+                debugMsg(currentGui, "[NavArea] chunk path cost=" + bestPath.totalCost + " waypoints=" + bestPath.size() + " area=" + area.name + "#" + area.id);
                 boolean success = chunkNav.navigateWithPath(bestPath, area, currentGui).IsSuccess();
-                currentGui.msg("[NavArea] chunk navigate success=" + success + " area=" + area.name + "#" + area.id);
+                debugMsg(currentGui, "[NavArea] chunk navigate success=" + success + " area=" + area.name + "#" + area.id);
                 return success;
             }
-            currentGui.msg("[NavArea] chunk path null area=" + area.name + "#" + area.id);
+            debugMsg(currentGui, "[NavArea] chunk path null area=" + area.name + "#" + area.id);
         }
         else {
-            currentGui.msg("[NavArea] chunknav unavailable area=" + area.name + "#" + area.id);
+            debugMsg(currentGui, "[NavArea] chunknav unavailable area=" + area.name + "#" + area.id);
         }
         return false;
     }

@@ -715,11 +715,11 @@ public class NContext {
 
     public ArrayList<ObjectStorage> getOutStorages(String item, double q)  throws InterruptedException
     {
-        gui.msg("[NContext] getOutStorages item=" + item + " q=" + q);
+        NUtils.debugMsg(gui, "[NContext] getOutStorages item=" + item + " q=" + q);
         ArrayList<ObjectStorage> outputs = new ArrayList<>();
         TreeMap<Double,String> thmap =  outAreas.get(item);
         if (thmap == null) {
-            gui.msg("[NContext] getOutStorages no threshold map item=" + item);
+            NUtils.debugMsg(gui, "[NContext] getOutStorages no threshold map item=" + item);
             return outputs;
         }
         String id = null;
@@ -732,14 +732,14 @@ public class NContext {
             }
         }
         if(id!=null) {
-            gui.msg("[NContext] getOutStorages navigate area=" + id + " item=" + item);
+            NUtils.debugMsg(gui, "[NContext] getOutStorages navigate area=" + id + " item=" + item);
             navigateToAreaIfNeeded(id);
 
             NArea area = areas.get(id);
-            gui.msg("[NContext] getOutStorages area=" + (area != null ? area.name + "#" + area.id : "null") + " visible=" + (area != null && area.isVisible()));
+            NUtils.debugMsg(gui, "[NContext] getOutStorages area=" + (area != null ? area.name + "#" + area.id : "null") + " visible=" + (area != null && area.isVisible()));
             NArea.Ingredient ingredient = area.getOutput(item);
             if (ingredient != null) {
-                gui.msg("[NContext] getOutStorages ingredient type=" + ingredient.type + " item=" + item + " area=" + id);
+                NUtils.debugMsg(gui, "[NContext] getOutStorages ingredient type=" + ingredient.type + " item=" + item + " area=" + id);
                 switch (ingredient.type) {
                     case BARTER:
                         outputs.add(new Barter(Finder.findGob(area, new NAlias("gfx/terobjs/barterstand")),
@@ -777,7 +777,7 @@ public class NContext {
             }
             else
             {
-                gui.msg("[NContext] getOutStorages no ingredient entry; scan containers/piles area=" + id + " item=" + item);
+                NUtils.debugMsg(gui, "[NContext] getOutStorages no ingredient entry; scan containers/piles area=" + id + " item=" + item);
                 for (Gob gob : Finder.findGobs(area, new NAlias(new ArrayList<String>(contcaps.keySet()), new ArrayList<>()))) {
                     String hash = gob.ngob.hash;
                     if(containers.containsKey(hash))
@@ -800,9 +800,9 @@ public class NContext {
             }
         }
         else {
-            gui.msg("[NContext] getOutStorages no matching threshold item=" + item + " q=" + q + " thresholds=" + thmap);
+            NUtils.debugMsg(gui, "[NContext] getOutStorages no matching threshold item=" + item + " q=" + q + " thresholds=" + thmap);
         }
-        gui.msg("[NContext] getOutStorages result item=" + item + " q=" + q + " count=" + outputs.size());
+        NUtils.debugMsg(gui, "[NContext] getOutStorages result item=" + item + " q=" + q + " count=" + outputs.size());
         return outputs;
     }
 
@@ -912,10 +912,10 @@ public class NContext {
     public void navigateToAreaIfNeeded(String areaId) throws InterruptedException {
         NArea area = areas.get(areaId);
         if(area == null) {
-            gui.msg("[NContext] navigateToAreaIfNeeded missing cached areaId=" + areaId);
+            NUtils.debugMsg(gui, "[NContext] navigateToAreaIfNeeded missing cached areaId=" + areaId);
             return;
         }
-        gui.msg("[NContext] navigateToAreaIfNeeded area=" + area.name + "#" + area.id + " key=" + areaId);
+        NUtils.debugMsg(gui, "[NContext] navigateToAreaIfNeeded area=" + area.name + "#" + area.id + " key=" + areaId);
         NUtils.navigateToArea(area);
     }
 
@@ -1007,7 +1007,7 @@ public class NContext {
     }
 
     public boolean addOutItem(String name, BufferedImage loadsimg, double th) throws InterruptedException {
-        gui.msg("[NContext] addOutItem item=" + name + " q=" + th);
+        NUtils.debugMsg(gui, "[NContext] addOutItem item=" + name + " q=" + th);
         if(!outAreas.containsKey(name))
         {
             outAreas.put(name,new TreeMap<>());
@@ -1017,7 +1017,7 @@ public class NContext {
             for(Double key :outAreas.get(name).descendingKeySet())
             {
                 if(th>key) {
-                    gui.msg("[NContext] addOutItem cached item=" + name + " q=" + th + " existingThreshold=" + key + " area=" + outAreas.get(name).get(key));
+                    NUtils.debugMsg(gui, "[NContext] addOutItem cached item=" + name + " q=" + th + " existingThreshold=" + key + " area=" + outAreas.get(name).get(key));
                     return true;
                 }
             }
@@ -1027,17 +1027,17 @@ public class NContext {
         {
             areas.put(String.valueOf(area.id),area);
             outAreas.get(name).put(Math.abs((double)area.getOutput(name).th), String.valueOf(area.id));
-            gui.msg("[NContext] addOutItem found area=" + area.name + "#" + area.id + " item=" + name + " threshold=" + Math.abs((double)area.getOutput(name).th));
+            NUtils.debugMsg(gui, "[NContext] addOutItem found area=" + area.name + "#" + area.id + " item=" + name + " threshold=" + Math.abs((double)area.getOutput(name).th));
         }
         if (loadsimg!=null && area == null) {
             String created = createArea("Please select area for:" + name, Resource.loadsimg("baubles/custom"), loadsimg);
             outAreas.get(name).put(Math.abs(th), created);
-            gui.msg("[NContext] addOutItem created areaId=" + created + " item=" + name + " threshold=" + Math.abs(th));
+            NUtils.debugMsg(gui, "[NContext] addOutItem created areaId=" + created + " item=" + name + " threshold=" + Math.abs(th));
         }
         else
         {
             if(area == null) {
-                gui.msg("[NContext] addOutItem no output area item=" + name + " q=" + th);
+                NUtils.debugMsg(gui, "[NContext] addOutItem no output area item=" + name + " q=" + th);
                 return false;
             }
         }
