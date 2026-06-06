@@ -212,12 +212,25 @@ public class ChunkNavRecorder {
         try {
             Gob player = NUtils.player();
             if (player != null) {
-                return nurgling.pf.Utils.toPfGrid(player.rc);
+                return worldToChunkCell(player.rc);
             }
         } catch (Exception e) {
             // Player not available
         }
         return null;
+    }
+
+    static Coord worldToChunkCell(Coord2d coord) {
+        return new Coord((int) Math.floor(coord.x / chunkCellWidth()),
+                         (int) Math.floor(coord.y / chunkCellHeight()));
+    }
+
+    private static double chunkCellWidth() {
+        return MCache.tilesz.x / CELLS_PER_TILE;
+    }
+
+    private static double chunkCellHeight() {
+        return MCache.tilesz.y / CELLS_PER_TILE;
     }
 
     /**
@@ -288,7 +301,7 @@ public class ChunkNavRecorder {
     private static final int VISIBLE_RADIUS_CELLS = 50;
 
     /**
-     * Sample walkability at half-tile resolution (4 cells per tile).
+     * Sample walkability at half-tile resolution (2x2 cells per tile).
      * Only samples cells within gob visibility range (~50 cells = 25 tiles radius).
      * Cells outside visibility remain unobserved (blocked by default).
      */
@@ -435,14 +448,14 @@ public class ChunkNavRecorder {
 
                 // Convert to cell coordinates - use floor for UL and ceil for BR
                 // to ensure we include ALL cells that the hitbox touches, even partially
-                // (Utils.toPfGrid uses round() which can miss edge cells)
+                // Direct point conversion can miss edge cells, so include the full bounds.
                 Coord cellUL = new Coord(
-                    (int) Math.floor(hitUL.x / MCache.tilehsz.x),
-                    (int) Math.floor(hitUL.y / MCache.tilehsz.y)
+                    (int) Math.floor(hitUL.x / chunkCellWidth()),
+                    (int) Math.floor(hitUL.y / chunkCellHeight())
                 );
                 Coord cellBR = new Coord(
-                    (int) Math.ceil(hitBR.x / MCache.tilehsz.x),
-                    (int) Math.ceil(hitBR.y / MCache.tilehsz.y)
+                    (int) Math.ceil(hitBR.x / chunkCellWidth()),
+                    (int) Math.ceil(hitBR.y / chunkCellHeight())
                 );
 
                 // For each candidate cell in the circumscribed bounds, test exact rectangle overlap.
@@ -469,10 +482,10 @@ public class ChunkNavRecorder {
     }
 
     static boolean cellOverlapsHitBox(nurgling.pf.NHitBoxD hitBox, int cellX, int cellY) {
-        double minX = cellX * MCache.tilehsz.x;
-        double minY = cellY * MCache.tilehsz.y;
-        double maxX = (cellX + 1) * MCache.tilehsz.x;
-        double maxY = (cellY + 1) * MCache.tilehsz.y;
+        double minX = cellX * chunkCellWidth();
+        double minY = cellY * chunkCellHeight();
+        double maxX = (cellX + 1) * chunkCellWidth();
+        double maxY = (cellY + 1) * chunkCellHeight();
         return hitBox.intersectsAxisAlignedRect(minX, minY, maxX, maxY, true);
     }
 
