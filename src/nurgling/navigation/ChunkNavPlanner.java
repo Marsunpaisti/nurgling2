@@ -183,39 +183,13 @@ public class ChunkNavPlanner {
             ChunkNavData chunk = graph.getChunk(gridId);
             if (chunk == null) continue;
 
-            // Get corner local coordinates based on cornerIndex
-            // We want to find a walkable tile OUTSIDE the area, adjacent to the corner
-            Coord cornerLocal;
-            int searchDirX, searchDirY; // Direction to search for walkable tile (away from area)
-            switch (cornerIndex) {
-                case 0: // top-left - search up-left from area
-                    cornerLocal = varea.area.ul;
-                    searchDirX = -1;
-                    searchDirY = -1;
-                    break;
-                case 1: // bottom-right - search down-right from area
-                    cornerLocal = varea.area.br.sub(1, 1); // br is exclusive
-                    searchDirX = 1;
-                    searchDirY = 1;
-                    break;
-                case 2: // bottom-left - search down-left from area
-                    cornerLocal = new Coord(varea.area.ul.x, varea.area.br.y - 1);
-                    searchDirX = -1;
-                    searchDirY = 1;
-                    break;
-                case 3: // top-right - search up-right from area
-                    cornerLocal = new Coord(varea.area.br.x - 1, varea.area.ul.y);
-                    searchDirX = 1;
-                    searchDirY = -1;
-                    break;
-                default:
-                    cornerLocal = varea.area.ul;
-                    searchDirX = -1;
-                    searchDirY = -1;
-            }
+            // Get corner local coordinates based on cornerIndex.
+            // We want to find a walkable tile OUTSIDE the area, adjacent to the corner.
+            Coord cornerLocal = getAreaCornerLocal(varea.area, cornerIndex);
+            Coord searchDir = getAreaCornerSearchDir(cornerIndex);
 
             // Find walkable tile OUTSIDE the area, adjacent to this corner
-            Coord walkable = findWalkableTileOutsideArea(chunk, cornerLocal, searchDirX, searchDirY, varea.area);
+            Coord walkable = findWalkableTileOutsideArea(chunk, cornerLocal, searchDir.x, searchDir.y, varea.area);
             if (walkable == null) {
                 // Fallback to any walkable near corner
                 walkable = findWalkableTileNear(chunk, cornerLocal);
@@ -261,7 +235,103 @@ public class ChunkNavPlanner {
 
         return bestPath;
     }
-    
+
+    /**
+     * Plan a path to the cheapest reachable approach target among all area corners.
+     * Uses one unified A* search with multiple targets instead of four separate searches.
+     */
+    public ChunkPath planToAreaTargets(nurgling.areas.NArea area) {
+        if (area == null || area.space == null || area.space.space == null || area.space.space.isEmpty()) {
+            return null;
+        }
+
+        PlayerLocation playerLoc = getPlayerLocation();
+        if (playerLoc == null) {
+            return null;
+        }
+
+        List<UnifiedTilePathfinder.TileNode> targets = new ArrayList<>();
+
+        for (java.util.Map.Entry<Long, nurgling.areas.NArea.VArea> entry : area.space.space.entrySet()) {
+            long gridId = entry.getKey();
+            nurgling.areas.NArea.VArea varea = entry.getValue();
+
+            if (varea == null || varea.area == null) continue;
+
+            ChunkNavData chunk = graph.getChunk(gridId);
+            if (chunk == null) continue;
+
+            for (int cornerIndex = 0; cornerIndex < 4; cornerIndex++) {
+                Coord cornerLocal = getAreaCornerLocal(varea.area, cornerIndex);
+                Coord searchDir = getAreaCornerSearchDir(cornerIndex);
+                Coord walkable = findWalkableTileOutsideArea(chunk, cornerLocal, searchDir.x, searchDir.y, varea.area);
+                if (walkable == null) {
+                    walkable = findWalkableTileNear(chunk, cornerLocal);
+                }
+                if (walkable == null) {
+                    walkable = cornerLocal;
+                }
+                targets.add(new UnifiedTilePathfinder.TileNode(gridId, walkable));
+            }
+        }
+
+        if (targets.isEmpty()) {
+            return null;
+        }
+
+        NGameUI gui = NUtils.getGameUI();
+        NUtils.debugMsg(gui, "[ChunkNav] area=" + area.name + "#" + area.id +
+                " multiTargets=" + targets.size() +
+                " startGrid=" + playerLoc.gridId +
+                " startLocal=" + playerLoc.localCoord);
+
+        UnifiedTilePathfinder.UnifiedPath unifiedPath = unifiedPathfinder.findPathToAny(
+                playerLoc.gridId, playerLoc.localCoord, targets);
+
+        NUtils.debugMsg(gui, "[ChunkNav] result area=" + area.name + "#" + area.id +
+                " multiTargets=" + targets.size() +
+                " reachable=" + (unifiedPath != null && unifiedPath.reachable) +
+                " steps=" + (unifiedPath != null ? unifiedPath.steps.size() : -1));
+
+        if (unifiedPath == null || !unifiedPath.reachable) {
+            return null;
+        }
+
+        ChunkPath path = new ChunkPath();
+        unifiedPath.populateChunkPath(path, graph);
+        return path;
+    }
+
+    private Coord getAreaCornerLocal(haven.Area area, int cornerIndex) {
+        switch (cornerIndex) {
+            case 0:
+                return area.ul;
+            case 1:
+                return area.br.sub(1, 1);
+            case 2:
+                return new Coord(area.ul.x, area.br.y - 1);
+            case 3:
+                return new Coord(area.br.x - 1, area.ul.y);
+            default:
+                return area.ul;
+        }
+    }
+
+    private Coord getAreaCornerSearchDir(int cornerIndex) {
+        switch (cornerIndex) {
+            case 0:
+                return new Coord(-1, -1);
+            case 1:
+                return new Coord(1, 1);
+            case 2:
+                return new Coord(-1, 1);
+            case 3:
+                return new Coord(1, -1);
+            default:
+                return new Coord(-1, -1);
+        }
+    }
+
     /**
      * Plan a path from player's current position to a specific grid + local coordinate.
      * Works correctly across different layers because it uses gridId directly.

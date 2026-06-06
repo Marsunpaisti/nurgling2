@@ -136,8 +136,7 @@ public class AreaNavigationHelper {
     
     /**
      * Find the shortest path to any of the 4 corners of an area.
-     * Plans corners sequentially because ChunkNavPlanner/UnifiedTilePathfinder is shared.
-     * Uses planToAreaCorner which works correctly across different layers/areas.
+     * Uses one multi-goal chunknav search so all corner approach targets compete in a single A* run.
      */
     public static ChunkPath findShortestPathToAreaCorners(NArea area, ChunkNavManager chunkNav) throws InterruptedException {
         if (area == null || area.space == null || area.space.space == null || area.space.space.isEmpty()) {
@@ -147,22 +146,18 @@ public class AreaNavigationHelper {
             return chunkNav.planToArea(area);
         }
 
-        // Find the shortest path
-        ChunkPath bestPath = null;
-        float bestCost = Float.MAX_VALUE;
-
-        for (int i = 0; i < 4; i++) {
-            if (Thread.currentThread().isInterrupted()) {
-                throw new InterruptedException();
-            }
-            ChunkPath path = chunkNav.planToAreaCorner(area, i);
-            NUtils.debugMsg(NUtils.getGameUI(), "[AreaCorner] area=" + area.name + "#" + area.id + " corner=" + i +
-                    " path=" + (path != null ? ("cost=" + path.totalCost + " waypoints=" + path.size()) : "null"));
-            if (path != null && path.totalCost < bestCost) {
-                bestPath = path;
-                bestCost = path.totalCost;
-            }
+        if (Thread.currentThread().isInterrupted()) {
+            throw new InterruptedException();
         }
+
+        ChunkPath bestPath = chunkNav.planToAreaTargets(area);
+
+        if (Thread.currentThread().isInterrupted()) {
+            throw new InterruptedException();
+        }
+
+        NUtils.debugMsg(NUtils.getGameUI(), "[AreaCorner] area=" + area.name + "#" + area.id +
+                " multiTarget path=" + (bestPath != null ? ("cost=" + bestPath.totalCost + " waypoints=" + bestPath.size()) : "null"));
 
         if (bestPath == null) {
             if (Thread.currentThread().isInterrupted()) {

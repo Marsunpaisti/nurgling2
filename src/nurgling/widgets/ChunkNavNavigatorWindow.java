@@ -137,7 +137,10 @@ public class ChunkNavNavigatorWindow extends Window {
             ThreadLocalUI.set(boundUI);
             try {
                 // First try ChunkNav
-                ChunkPath path = manager.planToArea(selectedArea);
+                ChunkPath path = manager.planToAreaTargets(selectedArea);
+                if (path == null) {
+                    path = manager.planToArea(selectedArea);
+                }
                 // Note: path with 0 waypoints is valid when already in target chunk
                 if (path != null) {
                     if (path.isEmpty()) {

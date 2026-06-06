@@ -360,6 +360,19 @@ public class ChunkNavManager {
     }
 
     /**
+     * Plan a path to the cheapest reachable area corner target in one multi-goal search.
+     */
+    public ChunkPath planToAreaTargets(nurgling.areas.NArea area) {
+        if (!enabled || !initialized) return null;
+
+        // Record all visible grids to ensure fresh data before planning
+        forceRecordVisibleGrids();
+
+        ChunkPath path = planner.planToAreaTargets(area);
+        return path;
+    }
+
+    /**
      * Plan a path to a specific grid + local coordinate.
      * Works correctly across different layers because it uses gridId directly.
      * @param gridId The target grid ID
@@ -444,7 +457,10 @@ public class ChunkNavManager {
             return nurgling.actions.Results.FAIL();
         }
 
-        ChunkPath path = planToArea(area);
+        ChunkPath path = planToAreaTargets(area);
+        if (path == null) {
+            path = planToArea(area);
+        }
         if (path == null) {
             return nurgling.actions.Results.FAIL();
         }

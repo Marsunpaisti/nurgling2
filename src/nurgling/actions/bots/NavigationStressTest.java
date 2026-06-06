@@ -176,7 +176,10 @@ public class NavigationStressTest implements Action {
 
         try {
             // First check if a path exists - if not, skip (not a failure)
-            ChunkPath path = navManager.planToArea(targetArea);
+            ChunkPath path = navManager.planToAreaTargets(targetArea);
+            if (path == null) {
+                path = navManager.planToArea(targetArea);
+            }
             if (path == null) {
                 result.skipped = true;
                 result.success = false;

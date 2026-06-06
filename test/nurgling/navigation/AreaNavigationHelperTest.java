@@ -11,7 +11,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class AreaNavigationHelperTest {
     public static void main(String[] args) {
         localPfAreaTargetsAreInsetFromTileBorders();
-        areaCornerPlanningDoesNotRunSharedChunkPlannerConcurrently();
+        areaCornerPlanningUsesSingleMultiGoalPlan();
+        interruptedAreaCornerPlanningDoesNotStartMultiGoalPlan();
         interruptedAreaCornerPlanningDoesNotStartFallbackPlan();
     }
 
@@ -32,7 +33,7 @@ public class AreaNavigationHelperTest {
         }
     }
 
-    private static void areaCornerPlanningDoesNotRunSharedChunkPlannerConcurrently() {
+    private static void areaCornerPlanningUsesSingleMultiGoalPlan() {
         NArea area = new NArea("test");
         area.space = new NArea.Space();
         area.space.space.put(1L, new NArea.VArea(new Area(new Coord(0, 0), new Coord(1, 1))));
@@ -44,30 +45,51 @@ public class AreaNavigationHelperTest {
             throw new AssertionError("test should not be interrupted", e);
         }
 
-        if (chunkNav.maxConcurrent.get() > 1) {
-            throw new AssertionError("area corner planning must not call shared ChunkNavPlanner concurrently; max concurrent calls=" + chunkNav.maxConcurrent.get());
+        if (chunkNav.multiGoalPlans.get() != 1) {
+            throw new AssertionError("area planning must use exactly one multi-goal plan; calls=" + chunkNav.multiGoalPlans.get());
+        }
+        if (chunkNav.cornerPlans.get() != 0) {
+            throw new AssertionError("area planning must not call per-corner planner; calls=" + chunkNav.cornerPlans.get());
         }
     }
 
     private static class CountingChunkNavManager extends ChunkNavManager {
-        private final AtomicInteger active = new AtomicInteger(0);
-        private final AtomicInteger maxConcurrent = new AtomicInteger(0);
+        private final AtomicInteger multiGoalPlans = new AtomicInteger(0);
+        private final AtomicInteger cornerPlans = new AtomicInteger(0);
+
+        @Override
+        public ChunkPath planToAreaTargets(NArea area) {
+            multiGoalPlans.incrementAndGet();
+            ChunkPath path = new ChunkPath();
+            path.totalCost = 7;
+            return path;
+        }
 
         @Override
         public ChunkPath planToAreaCorner(NArea area, int cornerIndex) {
-            int now = active.incrementAndGet();
-            maxConcurrent.updateAndGet(old -> Math.max(old, now));
-            try {
-                Thread.sleep(50);
-                ChunkPath path = new ChunkPath();
-                path.totalCost = cornerIndex;
-                return path;
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return null;
-            } finally {
-                active.decrementAndGet();
-            }
+            cornerPlans.incrementAndGet();
+            return null;
+        }
+    }
+
+    private static void interruptedAreaCornerPlanningDoesNotStartMultiGoalPlan() {
+        NArea area = new NArea("test");
+        area.space = new NArea.Space();
+        area.space.space.put(1L, new NArea.VArea(new Area(new Coord(0, 0), new Coord(1, 1))));
+        CountingChunkNavManager chunkNav = new CountingChunkNavManager();
+
+        Thread.currentThread().interrupt();
+        try {
+            AreaNavigationHelper.findShortestPathToAreaCorners(area, chunkNav);
+            throw new AssertionError("interrupted planning must throw InterruptedException");
+        } catch (InterruptedException expected) {
+            // Expected.
+        } finally {
+            Thread.interrupted();
+        }
+
+        if (chunkNav.multiGoalPlans.get() != 0) {
+            throw new AssertionError("already-interrupted area planning must not start multi-goal plan; calls=" + chunkNav.multiGoalPlans.get());
         }
     }
 
@@ -95,10 +117,8 @@ public class AreaNavigationHelperTest {
         private final AtomicInteger fallbackPlans = new AtomicInteger(0);
 
         @Override
-        public ChunkPath planToAreaCorner(NArea area, int cornerIndex) {
-            if (cornerIndex == 3) {
-                Thread.currentThread().interrupt();
-            }
+        public ChunkPath planToAreaTargets(NArea area) {
+            Thread.currentThread().interrupt();
             return null;
         }
 

@@ -562,7 +562,10 @@ public class NAreasWidget extends Window
                                     ChunkNavManager chunkNav = ((NMapView)gui.map).getChunkNavManager();
                                     if (chunkNav != null && chunkNav.isInitialized())
                                     {
-                                        ChunkPath path = chunkNav.planToArea(navArea);
+                                        ChunkPath path = chunkNav.planToAreaTargets(navArea);
+                                        if (path == null) {
+                                            path = chunkNav.planToArea(navArea);
+                                        }
                                         if (path != null)
                                         {
                                             try

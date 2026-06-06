@@ -1330,7 +1330,10 @@ public class ChunkNavExecutor implements Action {
 
         ChunkNavPlanner planner = new ChunkNavPlanner(graph);
         planner.setExcludedPortalChunks(failedPortalChunks);
-        ChunkPath newPath = planner.planToArea(targetArea);
+        ChunkPath newPath = planner.planToAreaTargets(targetArea);
+        if (newPath == null) {
+            newPath = planner.planToArea(targetArea);
+        }
 
         if (newPath == null || newPath.isEmpty()) {
             return Results.FAIL();

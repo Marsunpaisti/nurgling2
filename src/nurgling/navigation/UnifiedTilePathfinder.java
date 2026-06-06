@@ -136,28 +136,50 @@ public class UnifiedTilePathfinder {
      * @return UnifiedPath containing the complete tile-level path, or null if no path exists
      */
     public UnifiedPath findPath(long startChunkId, Coord startLocal, long targetChunkId, Coord targetLocal) {
+        return findPathToAny(startChunkId, startLocal,
+                Collections.singleton(new TileNode(targetChunkId, targetLocal)));
+    }
+
+    /**
+     * Find a path from a starting tile to the cheapest reachable target tile.
+     * Graph traversal stays forward from the player so portal edge semantics remain unchanged.
+     *
+     * @return UnifiedPath ending at one of the target tiles, or null if no target is reachable
+     */
+    public UnifiedPath findPathToAny(long startChunkId, Coord startLocal, Collection<TileNode> targets) {
         // System.out.println("[UnifiedTilePathfinder] findPath called:");
         // System.out.println("  - Start: chunk " + startChunkId + " local " + startLocal);
-        // System.out.println("  - Target: chunk " + targetChunkId + " local " + targetLocal);
+        // System.out.println("  - Targets: " + targets);
 
-        if (startChunkId == targetChunkId && startLocal.equals(targetLocal)) {
-            // Already at target
-            // System.out.println("[UnifiedTilePathfinder] Already at target!");
-            UnifiedPath path = new UnifiedPath();
-            path.reachable = true;
-            path.steps.add(new TileNode(startChunkId, startLocal));
-            return path;
+        if (targets == null || targets.isEmpty()) {
+            return null;
+        }
+
+        Set<TileNode> targetTiles = new HashSet<>();
+        for (TileNode target : targets) {
+            if (target != null && graph.getChunk(target.chunkId) != null) {
+                targetTiles.add(target);
+            }
+        }
+
+        if (targetTiles.isEmpty()) {
+            return null;
+        }
+
+        for (TileNode target : targetTiles) {
+            if (startChunkId == target.chunkId && startLocal.equals(target.localCoord)) {
+                // Already at one of the targets
+                UnifiedPath path = new UnifiedPath();
+                path.reachable = true;
+                path.steps.add(new TileNode(startChunkId, startLocal));
+                return path;
+            }
         }
 
         ChunkNavData startChunk = graph.getChunk(startChunkId);
-        ChunkNavData targetChunk = graph.getChunk(targetChunkId);
 
         if (startChunk == null) {
             // System.out.println("[UnifiedTilePathfinder] ERROR: Start chunk " + startChunkId + " not in graph!");
-            return null;
-        }
-        if (targetChunk == null) {
-            // System.out.println("[UnifiedTilePathfinder] ERROR: Target chunk " + targetChunkId + " not in graph!");
             return null;
         }
 
@@ -185,11 +207,10 @@ public class UnifiedTilePathfinder {
 
         // Initialize start node
         TileNode startTile = new TileNode(startChunkId, startLocal);
-        TileNode targetTile = new TileNode(targetChunkId, targetLocal);
 
         AStarNode startNode = new AStarNode(startTile);
         startNode.g = 0;
-        startNode.h = heuristic(startTile, targetTile);
+        startNode.h = heuristicToAny(startTile, targetTiles);
         startNode.f = startNode.g + startNode.h;
 
         openSet.add(startNode);
@@ -210,7 +231,7 @@ public class UnifiedTilePathfinder {
             AStarNode current = openSet.poll();
             chunksExplored.add(current.tile.chunkId);
 
-            if (current.tile.equals(targetTile)) {
+            if (targetTiles.contains(current.tile)) {
                 // Found path - reconstruct it
                 // System.out.println("[UnifiedTilePathfinder] PATH FOUND! Iterations: " + iterations + ", chunks: " + chunksExplored.size());
                 return reconstructPath(current);
@@ -240,7 +261,7 @@ public class UnifiedTilePathfinder {
                     neighborNode.parent = current;
                     neighborNode.viaPortalFromParent = neighborTile.viaPortal;  // Store how we got here
                     neighborNode.g = tentativeG;
-                    neighborNode.h = heuristic(neighborTile, targetTile);
+                    neighborNode.h = heuristicToAny(neighborTile, targetTiles);
                     neighborNode.f = neighborNode.g + neighborNode.h;
 
                     if (!openSet.contains(neighborNode)) {
@@ -257,6 +278,14 @@ public class UnifiedTilePathfinder {
         // }
 
         return null;
+    }
+
+    private double heuristicToAny(TileNode from, Collection<TileNode> targets) {
+        double best = Double.MAX_VALUE;
+        for (TileNode target : targets) {
+            best = Math.min(best, heuristic(from, target));
+        }
+        return best;
     }
 
     /**

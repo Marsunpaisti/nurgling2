@@ -14,7 +14,8 @@ import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.function.Function;
+import java.util.function.LongFunction;
 
 import static nurgling.areas.NContext.contcaps;
 
@@ -58,7 +59,9 @@ public class TransferSilkwormsFromHTablesToFeeding implements Action {
                 for (Container htableContainer : htableContainers) {
                     if (wormsTransferredTotal >= totalSilkwormsNeeded) {
                         // Still need to check remaining containers for egg capacity only
-                        new PathFinder(Finder.findGob(htableContainer.gobid)).run(gui);
+                        if (!navigateToContainer(gui, htableContainer)) {
+                            continue;
+                        }
                         new OpenTargetContainer(htableContainer).run(gui);
                         
                         // Record free space for eggs
@@ -69,7 +72,9 @@ public class TransferSilkwormsFromHTablesToFeeding implements Action {
                         continue;
                     }
                     
-                    new PathFinder(Finder.findGob(htableContainer.gobid)).run(gui);
+                    if (!navigateToContainer(gui, htableContainer)) {
+                        continue;
+                    }
                     new OpenTargetContainer(htableContainer).run(gui);
                     
                     // Get all silkworm WItems from this container, excluding anything with "egg" in the name
@@ -86,10 +91,14 @@ public class TransferSilkwormsFromHTablesToFeeding implements Action {
                         
                         if (wormsToTake == 0) {
                             // Inventory full - drop off and continue
-                            dropOffWormsToFeedingContainers(gui, feedingContainers, wormsAlias, context);
+                            if (!dropOffWormsToFeedingContainers(gui, feedingContainers, wormsAlias, context)) {
+                                return Results.ERROR("Unable to drop off silkworms to feeding containers");
+                            }
                             context.goToArea(Specialisation.SpecName.htable, "Silkworm Egg");
 
-                            new PathFinder(Finder.findGob(htableContainer.gobid)).run(gui);
+                            if (!navigateToContainer(gui, htableContainer)) {
+                                return Results.ERROR("Unable to find herbalist table after returning from silkworm feeding area");
+                            }
                             new OpenTargetContainer(htableContainer).run(gui);
 
                             // Refresh silkworm items list (may have changed)
@@ -124,7 +133,9 @@ public class TransferSilkwormsFromHTablesToFeeding implements Action {
                 
                 // Drop off any remaining silkworms in inventory after processing all containers
                 if (!gui.getInventory().getItems(wormsAlias).isEmpty()) {
-                    dropOffWormsToFeedingContainers(gui, feedingContainers, wormsAlias, context);
+                    if (!dropOffWormsToFeedingContainers(gui, feedingContainers, wormsAlias, context)) {
+                        return Results.ERROR("Unable to drop off silkworms to feeding containers");
+                    }
                 }
             }
         }
@@ -147,15 +158,21 @@ public class TransferSilkwormsFromHTablesToFeeding implements Action {
         return containers;
     }
     
-    private void dropOffWormsToFeedingContainers(NGameUI gui, ArrayList<Container> feedingContainers, NAlias wormsAlias, NContext context) throws InterruptedException {
-        context.goToArea(Specialisation.SpecName.silkwormFeeding);
+    private boolean dropOffWormsToFeedingContainers(NGameUI gui, ArrayList<Container> feedingContainers, NAlias wormsAlias, NContext context) throws InterruptedException {
+        NArea feedingArea = context.goToArea(Specialisation.SpecName.silkwormFeeding);
+        if (feedingArea != null) {
+            feedingContainers.clear();
+            feedingContainers.addAll(createContainersFromArea(feedingArea));
+        }
         
         for (Container feedingContainer : feedingContainers) {
             if (gui.getInventory().getItems(wormsAlias).isEmpty()) {
                 break; // No more silkworms in inventory
             }
             
-            new PathFinder(Finder.findGob(feedingContainer.gobid)).run(gui);
+            if (!navigateToContainer(gui, feedingContainer)) {
+                continue;
+            }
             new OpenTargetContainer(feedingContainer).run(gui);
             
             int currentWorms = gui.getInventory(feedingContainer.cap).getItems(wormsAlias).size();
@@ -167,5 +184,29 @@ public class TransferSilkwormsFromHTablesToFeeding implements Action {
             
             new CloseTargetContainer(feedingContainer).run(gui);
         }
+
+        return gui.getInventory().getItems(wormsAlias).isEmpty();
+    }
+
+    private boolean navigateToContainer(NGameUI gui, Container container) throws InterruptedException {
+        Gob target = findContainerGob(container);
+        if (target == null) {
+            return false;
+        }
+        return new PathFinder(target).run(gui).IsSuccess();
+    }
+
+    private Gob findContainerGob(Container container) {
+        return resolveContainerGob(container.gobHash, container.gobid, Finder::findGob, Finder::findGob);
+    }
+
+    static Gob resolveContainerGob(String gobHash, long gobid, Function<String, Gob> byHash, LongFunction<Gob> byId) {
+        if (gobHash != null && !gobHash.isEmpty()) {
+            Gob byStableHash = byHash.apply(gobHash);
+            if (byStableHash != null) {
+                return byStableHash;
+            }
+        }
+        return byId.apply(gobid);
     }
 }
