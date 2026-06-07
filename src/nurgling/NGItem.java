@@ -371,7 +371,7 @@ public class NGItem extends GItem
         // The isStackContainer flag is set in tick() when contents is available
         // Also check: if quality is null and NOT from stack, it's likely a stack container
         if (isStackContainer && !fromStack) {
-            System.out.println("NGItem.cache: Skipped stack container (flag): " + name);
+            //System.out.println("NGItem.cache: Skipped stack container (flag): " + name);
             addedToInventoryCache = true;
             return;
         }
@@ -382,14 +382,14 @@ public class NGItem extends GItem
             // Double check by looking at contents
             if (contents != null && contents instanceof ItemStack) {
                 isStackContainer = true;
-                System.out.println("NGItem.cache: Skipped stack container (contents): " + name);
+                //System.out.println("NGItem.cache: Skipped stack container (contents): " + name);
                 addedToInventoryCache = true;
                 return;
             }
             // Also check Amount info - stacks have this
             if (getInfo(GItem.Amount.class) != null) {
                 isStackContainer = true;
-                System.out.println("NGItem.cache: Skipped stack container (amount): " + name);
+                //System.out.println("NGItem.cache: Skipped stack container (amount): " + name);
                 addedToInventoryCache = true;
                 return;
             }
@@ -404,7 +404,7 @@ public class NGItem extends GItem
         // Calculate quality - items with null/0 quality should not be saved
         // (they are stack containers or items without quality info)
         if (quality == null || quality <= 0) {
-            System.out.println("NGItem.cache: Skipped zero quality: " + name + " q=" + quality);
+            //System.out.println("NGItem.cache: Skipped zero quality: " + name + " q=" + quality);
             addedToInventoryCache = true;
             return;
         }
@@ -442,7 +442,7 @@ public class NGItem extends GItem
                             inv.iis.add(cachedItemInfo);
                             addedToInventoryCache = true;
                             inv.lastUpdate = NUtils.getTickId();
-                            System.out.println("NGItem.cache: ADDED (stack): " + name + " q=" + q + " idx=" + stackIndex + " iis.size=" + inv.iis.size());
+                            //System.out.println("NGItem.cache: ADDED (stack): " + name + " q=" + q + " idx=" + stackIndex + " iis.size=" + inv.iis.size());
                             return;
                         }
                     }
@@ -459,7 +459,7 @@ public class NGItem extends GItem
         inv.iis.add(cachedItemInfo);
         addedToInventoryCache = true;
         inv.lastUpdate = NUtils.getTickId();
-        System.out.println("NGItem.cache: ADDED: " + name + " q=" + q + " iis.size=" + inv.iis.size());
+        //System.out.println("NGItem.cache: ADDED: " + name + " q=" + q + " iis.size=" + inv.iis.size());
     }
     
     /**
