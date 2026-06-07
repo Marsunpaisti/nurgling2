@@ -1486,6 +1486,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     }
 
     public void msg(String msg, Color color) {
+    System.out.println("[GameUI.msg] " + msg);
     msgtime = Utils.rtime();
     lastmsg = RootWidget.msgfoundry.render(msg, color);
     syslog.append(new ChatUI.Channel.SimpleMessage(msg, color));
@@ -1499,6 +1500,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 
 
     public void error(String msg) {
+    System.err.println("[GameUI.error] " + msg);
 	ui.error(msg);
     }
     

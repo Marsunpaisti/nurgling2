@@ -2,6 +2,7 @@ package nurgling.actions;
 
 import haven.Gob;
 import nurgling.NGameUI;
+import nurgling.NUtils;
 import nurgling.actions.bots.cheese.CheeseRackOverlayUtils;
 import nurgling.actions.bots.cheese.CheeseConstants;
 import nurgling.actions.bots.cheese.CheeseAreaManager;
@@ -117,9 +118,16 @@ public class ClearRacksAndRecordCapacity implements Action {
      * @return capacity scan data for the area
      */
     private CapacityScan clearReadyCheeseFromArea(NGameUI gui, NArea area, CheeseBranch.Place place) throws InterruptedException {
-        // Navigate to the area first
-        NContext context = new NContext(gui);
-        context.goToAreaById(area.id);
+        // Navigate to the area first. Capacity from unloaded areas is unreliable.
+        boolean navigationSuccess = NUtils.navigateToArea(area);
+
+        CapacityScan scan = new CapacityScan();
+        if (!navigationSuccess) {
+            scan.navigationFailed++;
+            scan.failedAreas.add(area.name + "#" + area.id);
+            gui.error("Cannot scan cheese racks " + place + ": failed to path to " + area.name + "#" + area.id);
+            return scan;
+        }
 
         // Find all cheese racks and buffer containers in this area
         ArrayList<Gob> rackGobs = Finder.findGobs(area, new NAlias(CheeseConstants.CHEESE_RACK_RESOURCE));
@@ -136,7 +144,6 @@ public class ClearRacksAndRecordCapacity implements Action {
             buffers.add(new Container(buffer, NContext.contcaps.get(buffer.ngob.name), area));
         }
 
-        CapacityScan scan = new CapacityScan();
         scan.racks = rackGobs.size();
         for (Gob rackGob : rackGobs) {
             switch (CheeseRackOverlayUtils.getRackStatus(rackGob)) {
@@ -171,6 +178,8 @@ public class ClearRacksAndRecordCapacity implements Action {
         int partial;
         int full;
         int recordedCapacity;
+        int navigationFailed;
+        ArrayList<String> failedAreas = new ArrayList<>();
 
         void add(CapacityScan other) {
             this.racks += other.racks;
@@ -178,11 +187,14 @@ public class ClearRacksAndRecordCapacity implements Action {
             this.partial += other.partial;
             this.full += other.full;
             this.recordedCapacity += other.recordedCapacity;
+            this.navigationFailed += other.navigationFailed;
+            this.failedAreas.addAll(other.failedAreas);
         }
 
         String toDiagnostics() {
             return "areas=" + areas + ", racks=" + racks + ", empty=" + empty + ", partial=" + partial +
-                    ", full=" + full + ", recordedCapacity=" + recordedCapacity;
+                    ", full=" + full + ", recordedCapacity=" + recordedCapacity +
+                    ", navigationFailed=" + navigationFailed + ", failedAreas=" + failedAreas;
         }
     }
     
