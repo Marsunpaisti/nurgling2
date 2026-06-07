@@ -29,6 +29,7 @@ public class CreateTraysWithCurds implements Action {
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         NContext context = new NContext(gui);
+        CreationDiagnostics diagnostics = new CreationDiagnostics(curdType, count);
 
         context.addInItem(curdType, null);
         context.addInItem(cheeseTrayType, null);
@@ -36,17 +37,18 @@ public class CreateTraysWithCurds implements Action {
         int traysCreated = 0;
         
         // Step 1: Pre-fetch empty trays FIRST (before scanning curds)
-        fetchEmptyTraysForBatch(gui, context, count);
+        fetchEmptyTraysForBatch(gui, context, count, diagnostics);
         
         // Step 2: Scan all curd containers ONCE and cache item counts
-        ArrayList<ContainerCurdInfo> curdContainers = scanCurdContainers(gui, context);
-        int totalCurdsAvailable = calculateTotalCurds(curdContainers);
+        ArrayList<ContainerCurdInfo> curdContainers = scanCurdContainers(gui, context, diagnostics);
+        gui.msg("Curd tray creation start for " + curdType + ": " + diagnostics.toSummary());
         
         while (traysCreated < count) {
             // 1. Find an empty tray (should be available from pre-fetch)
             WItem emptyTray = getNextEmptyTray(gui);
             if (emptyTray == null) {
-                gui.error("No empty tray available - this shouldn't happen after pre-fetch");
+                diagnostics.createdTrays = traysCreated;
+                gui.error("Curd tray creation failed for " + curdType + ": no empty tray available (" + diagnostics.toSummary() + ")");
                 break;
             }
 
@@ -60,14 +62,16 @@ public class CreateTraysWithCurds implements Action {
                 
                 // Only proceed if we have enough curds in storage
                 if (availableInStorage < needed) {
-                    gui.error("Not enough curds available to fill a tray (need " + needed + ", found " + availableInStorage + ")");
+                    diagnostics.createdTrays = traysCreated;
+                    gui.error("Curd tray creation failed for " + curdType + ": not enough curds available to fill a tray (need " + needed + ", found " + availableInStorage + ", " + diagnostics.toSummary() + ")");
                     break;
                 }
                 
                 // Take curds from containers using cached info (go to containers with curds first)
-                Results curdRes = takeCurdsOptimized(gui, context, curdContainers, needed);
+                Results curdRes = takeCurdsOptimized(gui, context, curdContainers, needed, diagnostics);
                 if (!curdRes.isSuccess || gui.getInventory().getItems(curdType).size() < CheeseConstants.CURDS_PER_TRAY) {
-                    gui.error("Failed to retrieve curds from storage");
+                    diagnostics.createdTrays = traysCreated;
+                    gui.error("Curd tray creation failed for " + curdType + ": failed to retrieve curds from storage (inventoryCurds=" + gui.getInventory().getItems(curdType).size() + ", " + diagnostics.toSummary() + ")");
                     break;
                 }
 
@@ -85,6 +89,8 @@ public class CreateTraysWithCurds implements Action {
         }
 
         lastTraysCreated = traysCreated;
+        diagnostics.createdTrays = traysCreated;
+        gui.msg("Curd tray creation summary for " + curdType + ": " + diagnostics.toSummary());
         
         // Note: We do NOT clean up inventory here!
         // The calling code (ProcessCheeseOrderInBatches) is responsible for:
@@ -99,21 +105,25 @@ public class CreateTraysWithCurds implements Action {
      * Scan all curd containers ONCE and cache their item counts.
      * This avoids repeated PathFinder calls to check availability.
      */
-    private ArrayList<ContainerCurdInfo> scanCurdContainers(NGameUI gui, NContext context) throws InterruptedException {
+    private ArrayList<ContainerCurdInfo> scanCurdContainers(NGameUI gui, NContext context, CreationDiagnostics diagnostics) throws InterruptedException {
         ArrayList<ContainerCurdInfo> result = new ArrayList<>();
         ArrayList<NContext.ObjectStorage> curdStorages = context.getInStorages(curdType);
+        diagnostics.curdStorages = curdStorages != null ? curdStorages.size() : 0;
         
         if (curdStorages == null || curdStorages.isEmpty()) {
+            gui.msg("Curd tray creation curd scan for " + curdType + ": no input storage configured (" + diagnostics.toSummary() + ")");
             return result;
         }
         
         for (NContext.ObjectStorage storage : curdStorages) {
             if (storage instanceof Container) {
+                diagnostics.curdContainersScanned++;
                 Container container = (Container) storage;
                 Gob containerGob = Finder.findGob(container.gobid);
                 if (containerGob != null) {
                     // Skip visually empty containers
                     if (containerGob.ngob.isContainerEmpty()) {
+                        diagnostics.curdContainersSkippedEmpty++;
                         continue;
                     }
                     
@@ -122,10 +132,13 @@ public class CreateTraysWithCurds implements Action {
                     
                     ArrayList<WItem> curdsInContainer = gui.getInventory(container.cap).getItems(curdType);
                     int curdCount = curdsInContainer.size();
+                    diagnostics.curdsFound += curdCount;
                     
                     result.add(new ContainerCurdInfo(container, curdCount));
                     
                     new CloseTargetContainer(container).run(gui);
+                } else {
+                    diagnostics.curdContainersMissingGob++;
                 }
             }
         }
@@ -148,7 +161,7 @@ public class CreateTraysWithCurds implements Action {
      * Take curds from containers using cached info.
      * Goes directly to containers that have curds, skipping empty ones.
      */
-    private Results takeCurdsOptimized(NGameUI gui, NContext context, ArrayList<ContainerCurdInfo> containers, int needed) throws InterruptedException {
+    private Results takeCurdsOptimized(NGameUI gui, NContext context, ArrayList<ContainerCurdInfo> containers, int needed, CreationDiagnostics diagnostics) throws InterruptedException {
         int taken = 0;
         
         for (ContainerCurdInfo info : containers) {
@@ -156,7 +169,10 @@ public class CreateTraysWithCurds implements Action {
             if (info.curdCount <= 0) continue;
             
             Gob containerGob = Finder.findGob(info.container.gobid);
-            if (containerGob == null) continue;
+            if (containerGob == null) {
+                diagnostics.curdContainersMissingGob++;
+                continue;
+            }
             
             new PathFinder(containerGob).run(gui);
             new OpenTargetContainer(info.container).run(gui);
@@ -170,6 +186,7 @@ public class CreateTraysWithCurds implements Action {
                 curd.item.wdgmsg("transfer", haven.Coord.z);
                 NUtils.addTask(new nurgling.tasks.ISRemoved(curd.item.wdgid()));
                 taken++;
+                diagnostics.curdsTaken++;
                 info.curdCount--; // Update cached count
             }
             
@@ -190,45 +207,60 @@ public class CreateTraysWithCurds implements Action {
     /**
      * Pre-fetch empty trays for the entire batch, reserving 4 slots for curds
      */
-    private void fetchEmptyTraysForBatch(NGameUI gui, NContext context, int traysNeeded) throws InterruptedException {
+    private void fetchEmptyTraysForBatch(NGameUI gui, NContext context, int traysNeeded, CreationDiagnostics diagnostics) throws InterruptedException {
         // Calculate how many empty trays we already have
         int emptyTraysInInventory = countEmptyTraysInInventory(gui);
+        diagnostics.emptyTraysInInventory = emptyTraysInInventory;
         int traysToFetch = traysNeeded - emptyTraysInInventory;
         
         if (traysToFetch <= 0) {
+            diagnostics.trayFetchLimit = 0;
             return;
         }
         
         // Calculate available space for cheese trays (1x2 each) and reserve space for curds
         // Use centralized cheese tray size constant
         int availableTraySlots = CheeseInventoryOperations.getAvailableCheeseTraySlotsInInventory(gui);
+        diagnostics.availableTraySlots = availableTraySlots;
         int availableSlots = availableTraySlots - CheeseConstants.RESERVED_CURD_SLOTS; // Reserve slots for curds
         
         // Limit trays to fetch by available inventory space
         traysToFetch = Math.min(traysToFetch, availableSlots);
+        diagnostics.trayFetchLimit = traysToFetch;
         
         if (traysToFetch <= 0) {
+            gui.msg("Curd tray creation tray fetch for " + curdType + ": no inventory room for trays after reserving curd slots (" + diagnostics.toSummary() + ")");
             return;
         }
         
         ArrayList<NContext.ObjectStorage> storages = context.getInStorages(cheeseTrayType);
+        diagnostics.trayStorages = storages != null ? storages.size() : 0;
         if (storages == null || storages.isEmpty()) {
+            gui.msg("Curd tray creation tray fetch for " + curdType + ": no Cheese Tray input storage configured (" + diagnostics.toSummary() + ")");
             return;
         }
         
         int traysObtained = 0;
         for (NContext.ObjectStorage storage : storages) {
             if (storage instanceof Container && traysObtained < traysToFetch) {
+                diagnostics.trayContainersScanned++;
                 Container container = (Container) storage;
                 
                 // Skip empty containers using visual flag
                 Gob gob = Finder.findGob(container.gobid);
                 if (gob != null && gob.ngob.isContainerEmpty()) {
+                    diagnostics.trayContainersSkippedEmpty++;
                     continue;
                 }
                 
-                traysObtained += fetchMultipleTraysFromContainer(gui, container, traysToFetch - traysObtained);
+                int fetched = fetchMultipleTraysFromContainer(gui, container, traysToFetch - traysObtained, diagnostics);
+                traysObtained += fetched;
+                diagnostics.traysObtained += fetched;
             }
+        }
+
+        if (traysObtained < traysToFetch) {
+            gui.msg("Curd tray creation tray fetch for " + curdType + ": fetched fewer trays than requested (" + diagnostics.toSummary() + ")");
         }
     }
     
@@ -264,9 +296,12 @@ public class CreateTraysWithCurds implements Action {
      * Fetch multiple empty trays from a specific container
      * @return number of empty trays actually obtained
      */
-    private int fetchMultipleTraysFromContainer(NGameUI gui, Container container, int maxTrays) throws InterruptedException {
+    private int fetchMultipleTraysFromContainer(NGameUI gui, Container container, int maxTrays, CreationDiagnostics diagnostics) throws InterruptedException {
             Gob containerGob = Finder.findGob(container.gobid);
-            if (containerGob == null) return 0;
+            if (containerGob == null) {
+                diagnostics.trayContainersMissingGob++;
+                return 0;
+            }
             
             new PathFinder(containerGob).run(gui);
             new OpenTargetContainer(container).run(gui);
@@ -282,6 +317,7 @@ public class CreateTraysWithCurds implements Action {
                     emptyTraysFound++;
                 }
             }
+            diagnostics.emptyTraysFoundInStorage += emptyTraysFound;
             
             if (emptyTraysFound == 0) {
                 new CloseTargetContainer(container).run(gui);
@@ -326,6 +362,52 @@ public class CreateTraysWithCurds implements Action {
         ContainerCurdInfo(Container container, int curdCount) {
             this.container = container;
             this.curdCount = curdCount;
+        }
+    }
+
+    private static class CreationDiagnostics {
+        final String curdType;
+        final int requestedTrays;
+        int emptyTraysInInventory;
+        int availableTraySlots;
+        int trayFetchLimit;
+        int trayStorages;
+        int trayContainersScanned;
+        int trayContainersSkippedEmpty;
+        int trayContainersMissingGob;
+        int emptyTraysFoundInStorage;
+        int traysObtained;
+        int curdStorages;
+        int curdContainersScanned;
+        int curdContainersSkippedEmpty;
+        int curdContainersMissingGob;
+        int curdsFound;
+        int curdsTaken;
+        int createdTrays;
+
+        CreationDiagnostics(String curdType, int requestedTrays) {
+            this.curdType = curdType;
+            this.requestedTrays = requestedTrays;
+        }
+
+        String toSummary() {
+            return "curdType=" + curdType + ", requestedTrays=" + requestedTrays +
+                    ", emptyTraysInInventory=" + emptyTraysInInventory +
+                    ", availableTraySlots=" + availableTraySlots +
+                    ", trayFetchLimit=" + trayFetchLimit +
+                    ", trayStorages=" + trayStorages +
+                    ", trayContainersScanned=" + trayContainersScanned +
+                    ", trayContainersSkippedEmpty=" + trayContainersSkippedEmpty +
+                    ", trayContainersMissingGob=" + trayContainersMissingGob +
+                    ", emptyTraysFoundInStorage=" + emptyTraysFoundInStorage +
+                    ", traysObtained=" + traysObtained +
+                    ", curdStorages=" + curdStorages +
+                    ", curdContainersScanned=" + curdContainersScanned +
+                    ", curdContainersSkippedEmpty=" + curdContainersSkippedEmpty +
+                    ", curdContainersMissingGob=" + curdContainersMissingGob +
+                    ", curdsFound=" + curdsFound +
+                    ", curdsTaken=" + curdsTaken +
+                    ", createdTrays=" + createdTrays;
         }
     }
 }
