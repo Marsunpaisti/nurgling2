@@ -37,6 +37,7 @@ public class CheeseProductionBot implements Action {
 
         Map<CheeseBranch.Place, Integer> rackCapacity = clearAction.getLastRecordedCapacity();
         Map<CheeseBranch.Place, Boolean> bufferEmptinessMap = clearAction.getBufferEmptinessMap();
+        Map<CheeseBranch.Place, String> capacityDiagnostics = clearAction.getLastCapacityDiagnostics();
 
         // 3. Pass 2: Process buffers (slice ready cheese, move aging cheese)
         ProcessCheeseFromBufferContainers bufferAction = new ProcessCheeseFromBufferContainers(sharedOrdersManager, rackCapacity, bufferEmptinessMap);
@@ -55,6 +56,13 @@ public class CheeseProductionBot implements Action {
             rackCapacity.put(area, updatedCapacity);
         }
 
+        for (Map.Entry<CheeseBranch.Place, Integer> entry : rackCapacity.entrySet()) {
+            CheeseBranch.Place area = entry.getKey();
+            String scanDetails = capacityDiagnostics.getOrDefault(area, "scan unavailable");
+            int movedToArea = traysMovedToAreas.getOrDefault(area, 0);
+            capacityDiagnostics.put(area, scanDetails + ", movedToArea=" + movedToArea + ", availableNow=" + entry.getValue());
+        }
+
         // 5. Create new curd trays for incomplete orders (only "start" step)
         for (Map.Entry<String, Integer> work : workNeeded.entrySet()) {
             String cheeseType = work.getKey();
@@ -65,7 +73,7 @@ public class CheeseProductionBot implements Action {
             
             // Only process curd creation (start step) - movement work was already handled in steps 2-3
             Results orderResult = new ProcessCheeseOrderInBatches(cheeseType, quantity, inventoryCapacity,
-                    rackManager, rackCapacity, sharedOrdersManager).run(gui);
+                    rackManager, rackCapacity, sharedOrdersManager, capacityDiagnostics).run(gui);
             if (!orderResult.IsSuccess()) {
                 gui.error("Failed to process " + cheeseType + " curd creation");
             }

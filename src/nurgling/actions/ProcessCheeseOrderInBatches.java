@@ -23,16 +23,18 @@ public class ProcessCheeseOrderInBatches implements Action {
     private final CheeseRackManager rackManager;
     private final Map<CheeseBranch.Place, Integer> rackCapacity;
     private final CheeseOrdersManager ordersManager;
+    private final Map<CheeseBranch.Place, String> capacityDiagnostics;
     
     public ProcessCheeseOrderInBatches(String cheeseType, int totalQuantity, int inventoryCapacity, 
-                                      CheeseRackManager rackManager, Map<CheeseBranch.Place, Integer> rackCapacity,
-                                      CheeseOrdersManager ordersManager) {
+                                       CheeseRackManager rackManager, Map<CheeseBranch.Place, Integer> rackCapacity,
+                                       CheeseOrdersManager ordersManager, Map<CheeseBranch.Place, String> capacityDiagnostics) {
         this.cheeseType = cheeseType;
         this.totalQuantity = totalQuantity;
         this.inventoryCapacity = inventoryCapacity;
         this.rackManager = rackManager;
         this.rackCapacity = rackCapacity;
         this.ordersManager = ordersManager;
+        this.capacityDiagnostics = capacityDiagnostics != null ? capacityDiagnostics : java.util.Collections.emptyMap();
     }
     
     @Override
@@ -57,7 +59,9 @@ public class ProcessCheeseOrderInBatches implements Action {
         int totalRackSpace = calculateAvailableRackSpace(chain, rackCapacity);
 
         if(totalRackSpace == 0) {
-            gui.msg("No rack space for " + cheeseType + " curd creation in " + chain.get(1).place);
+            CheeseBranch.Place targetPlace = chain.get(1).place;
+            String diagnostics = capacityDiagnostics.getOrDefault(targetPlace, "scan unavailable");
+            gui.msg("No rack space for " + cheeseType + " curd creation in " + targetPlace + " (capacity details: " + diagnostics + ")");
             return Results.SUCCESS();
         }
 

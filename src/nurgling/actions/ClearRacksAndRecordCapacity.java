@@ -25,11 +25,13 @@ public class ClearRacksAndRecordCapacity implements Action {
     // Use centralized cheese tray size constant
     private Map<CheeseBranch.Place, Integer> lastRecordedCapacity = new HashMap<>();
     private Map<CheeseBranch.Place, Boolean> bufferEmptinessMap = new HashMap<>();
+    private Map<CheeseBranch.Place, String> lastCapacityDiagnostics = new HashMap<>();
     
     @Override
     public Results run(NGameUI gui) throws InterruptedException {
         lastRecordedCapacity = new HashMap<>();
         bufferEmptinessMap = new HashMap<>();
+        lastCapacityDiagnostics = new HashMap<>();
         Map<CheeseBranch.Place, Integer> rackCapacity = new HashMap<>();
 
         CheeseBranch.Place[] places = {
@@ -47,17 +49,23 @@ public class ClearRacksAndRecordCapacity implements Action {
                 gui.msg("No cheese racks area found for " + place);
                 rackCapacity.put(place, 0);
                 bufferEmptinessMap.put(place, true);
+                String diagnostics = "areas=0, racks=0, empty=0, partial=0, full=0, recordedCapacity=0";
+                lastCapacityDiagnostics.put(place, diagnostics);
+                gui.msg("Cheese rack capacity " + place + ": " + diagnostics);
                 continue;
             }
 
             // Aggregate capacity and buffer emptiness across all areas of this place type
             int totalCapacity = 0;
             boolean allBuffersEmptyForPlace = true;
+            CapacityScan totalScan = new CapacityScan();
+            totalScan.areas = areasForPlace.size();
 
             for (NArea area : areasForPlace) {
                 // Step 1: Clear ready cheese from racks to buffer containers and get capacity
-                int areaCapacity = clearReadyCheeseFromArea(gui, area, place);
-                totalCapacity += areaCapacity;
+                CapacityScan areaScan = clearReadyCheeseFromArea(gui, area, place);
+                totalCapacity += areaScan.recordedCapacity;
+                totalScan.add(areaScan);
 
                 // Step 2: Check buffer emptiness in this area
                 boolean areaBuffersEmpty = checkBufferEmptinessForArea(gui, area, place);
@@ -68,6 +76,9 @@ public class ClearRacksAndRecordCapacity implements Action {
 
             rackCapacity.put(place, totalCapacity);
             bufferEmptinessMap.put(place, allBuffersEmptyForPlace);
+            String diagnostics = totalScan.toDiagnostics();
+            lastCapacityDiagnostics.put(place, diagnostics);
+            gui.msg("Cheese rack capacity " + place + ": " + diagnostics);
         }
 
         lastRecordedCapacity = rackCapacity;
@@ -89,6 +100,13 @@ public class ClearRacksAndRecordCapacity implements Action {
     public Map<CheeseBranch.Place, Boolean> getBufferEmptinessMap() {
         return new HashMap<>(bufferEmptinessMap);
     }
+
+    /**
+     * Get the last rack capacity scan diagnostics by place.
+     */
+    public Map<CheeseBranch.Place, String> getLastCapacityDiagnostics() {
+        return new HashMap<>(lastCapacityDiagnostics);
+    }
     
     /**
      * Clear ready cheese from a specific area's racks to its buffer containers
@@ -96,9 +114,9 @@ public class ClearRacksAndRecordCapacity implements Action {
      * @param gui The game UI
      * @param area The specific area to process
      * @param place The place type (for logging)
-     * @return total capacity of all racks in the area
+     * @return capacity scan data for the area
      */
-    private int clearReadyCheeseFromArea(NGameUI gui, NArea area, CheeseBranch.Place place) throws InterruptedException {
+    private CapacityScan clearReadyCheeseFromArea(NGameUI gui, NArea area, CheeseBranch.Place place) throws InterruptedException {
         // Navigate to the area first
         NContext context = new NContext(gui);
         context.goToAreaById(area.id);
@@ -118,20 +136,54 @@ public class ClearRacksAndRecordCapacity implements Action {
             buffers.add(new Container(buffer, NContext.contcaps.get(buffer.ngob.name), area));
         }
 
-        // Log rack status summary using overlays
-        String rackStatusSummary = CheeseRackOverlayUtils.getRackStatusSummary(rackGobs);
+        CapacityScan scan = new CapacityScan();
+        scan.racks = rackGobs.size();
+        for (Gob rackGob : rackGobs) {
+            switch (CheeseRackOverlayUtils.getRackStatus(rackGob)) {
+                case EMPTY:
+                    scan.empty++;
+                    break;
+                case PARTIAL:
+                    scan.partial++;
+                    break;
+                case FULL:
+                    scan.full++;
+                    break;
+            }
+        }
 
         // Use the new efficient action to move ready cheese and get capacity data
         MoveReadyCheeseToBuffers moveAction = new MoveReadyCheeseToBuffers(racks, buffers, place);
         MoveReadyCheeseToBuffers.ResultWithCapacity result = moveAction.runWithCapacity(gui);
 
         // Calculate total capacity from all racks
-        int totalCapacity = 0;
         for (Integer capacity : result.rackCapacities.values()) {
-            totalCapacity += capacity;
+            scan.recordedCapacity += capacity;
         }
 
-        return totalCapacity;
+        return scan;
+    }
+
+    private static class CapacityScan {
+        int areas;
+        int racks;
+        int empty;
+        int partial;
+        int full;
+        int recordedCapacity;
+
+        void add(CapacityScan other) {
+            this.racks += other.racks;
+            this.empty += other.empty;
+            this.partial += other.partial;
+            this.full += other.full;
+            this.recordedCapacity += other.recordedCapacity;
+        }
+
+        String toDiagnostics() {
+            return "areas=" + areas + ", racks=" + racks + ", empty=" + empty + ", partial=" + partial +
+                    ", full=" + full + ", recordedCapacity=" + recordedCapacity;
+        }
     }
     
     /**
