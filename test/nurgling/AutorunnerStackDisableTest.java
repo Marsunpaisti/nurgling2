@@ -21,16 +21,46 @@ public class AutorunnerStackDisableTest {
             throw new AssertionError("stackSwitch must search menu pages for the inventory stacking action");
         }
 
+        Path descriptorPath = Path.of("src", "nurgling", "actions", "bots", "registry", "BotDescriptor.java");
+        String descriptor = new String(Files.readAllBytes(descriptorPath), StandardCharsets.UTF_8);
+        if (!descriptor.contains("enum StackMode") || !descriptor.contains("ENABLED") || !descriptor.contains("DISABLED")) {
+            throw new AssertionError("bot descriptors must support explicit stack enable and disable modes");
+        }
+
+        Path registryPath = Path.of("src", "nurgling", "actions", "bots", "registry", "BotRegistry.java");
+        String registry = new String(Files.readAllBytes(registryPath), StandardCharsets.UTF_8);
+        if (!registry.contains("SilkProductionBot.class, \"silkworm_cocoon\", BotDescriptor.StackMode.ENABLED")) {
+            throw new AssertionError("silk production must explicitly enable inventory stacking");
+        }
+        if (!registry.contains("FreeContainersInArea.class, \"unbox\", BotDescriptor.StackMode.ENABLED") ||
+                !registry.contains("FreeContainersInUnboxZone.class, \"unbox_zone\", BotDescriptor.StackMode.ENABLED")) {
+            throw new AssertionError("unboxing bots must explicitly enable inventory stacking");
+        }
+
+        Path widgetPath = Path.of("src", "nurgling", "widgets", "BotsInterruptWidget.java");
+        String widget = new String(Files.readAllBytes(widgetPath), StandardCharsets.UTF_8);
+        if (!widget.contains("finishStackMode") || !widget.contains("NUtils.stackSwitch(true)")) {
+            throw new AssertionError("bot cleanup must default inventory stacking back to enabled");
+        }
+        if (!widget.contains("hasActiveStackMode(BotDescriptor.StackMode.DISABLED)")) {
+            throw new AssertionError("cleanup must keep stacking disabled while another disabling bot is active");
+        }
+
         Path mapPath = Path.of("src", "nurgling", "NMapView.java");
         String map = new String(Files.readAllBytes(mapPath), StandardCharsets.UTF_8);
         int waitComplete = map.indexOf("WaitForMap");
-        int retry = map.indexOf("NUtils.stackSwitch(false)");
-        int runner = map.indexOf("runner.run(boundGui)");
+        int retry = map.indexOf("NUtils.stackSwitch(stackMode == BotDescriptor.StackMode.ENABLED)");
+        int runner = map.indexOf("scenarioRunner.run(boundGui)");
         if (retry < 0 || runner < 0 || retry > runner) {
-            throw new AssertionError("autorunner must retry disabling stacks before ScenarioRunner starts");
+            throw new AssertionError("autorunner must apply requested stack mode before ScenarioRunner starts");
         }
         if (waitComplete >= 0 && retry < waitComplete) {
             throw new AssertionError("autorunner stack retry must happen after map/UI initialization waits");
+        }
+        int restore = map.indexOf("NUtils.stackSwitch(true)");
+        int exit = map.indexOf("System.exit(0)");
+        if (restore < 0 || exit < 0 || restore > exit) {
+            throw new AssertionError("autorunner must enable stacking before process exit");
         }
     }
 }

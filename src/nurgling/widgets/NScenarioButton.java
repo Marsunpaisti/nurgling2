@@ -30,7 +30,7 @@ public class NScenarioButton extends IButton {
     private void executeScenario() {
         if (scenario != null) {
             ScenarioRunner runner = new ScenarioRunner(scenario);
-            BotExecutor.runAsync("ScenarioRunner-" + scenario.getName(), runner, runner.disablesStacks());
+            BotExecutor.runAsync("ScenarioRunner-" + scenario.getName(), runner, runner.stackMode());
         }
     }
     
