@@ -916,7 +916,8 @@ public class NContext {
             return;
         }
         NUtils.debugMsg(gui, "[NContext] navigateToAreaIfNeeded area=" + area.name + "#" + area.id + " key=" + areaId);
-        NUtils.navigateToArea(area);
+        boolean success = NUtils.navigateToArea(area);
+        NUtils.debugMsg(gui, "[NContext] navigateToAreaIfNeeded result=" + success + " area=" + area.name + "#" + area.id + " key=" + areaId);
     }
 
     public String createArea(String msg, BufferedImage bauble) throws InterruptedException {
@@ -1531,7 +1532,14 @@ public class NContext {
                     boolean subtypeMatch = (subtype == null || subtype.isEmpty()) ||
                         (s.subtype != null && s.subtype.equalsIgnoreCase(subtype));
                     if (nameMatch && subtypeMatch) {
-                        areaDistances.put(area, getDistanceToArea(area, gui));
+                        double distance = getDistanceToArea(area, gui);
+                        areaDistances.put(area, distance);
+                        NUtils.debugMsg(gui, "[AreaSelect] spec=" + name + " subtype=" + subtype +
+                                " candidate=" + area.name + "#" + area.id +
+                                " dist=" + distance +
+                                " visible=" + area.isVisible() +
+                                " hidden=" + area.hide +
+                                " grids=" + (area.space != null && area.space.space != null ? area.space.space.keySet() : "null"));
                         break; // Don't check other specs for same area
                     }
                 }
@@ -1541,6 +1549,10 @@ public class NContext {
         // Sort by distance
         ArrayList<NArea> results = new ArrayList<>(areaDistances.keySet());
         results.sort((a, b) -> Double.compare(areaDistances.get(a), areaDistances.get(b)));
+        NUtils.debugMsg(gui, "[AreaSelect] spec=" + name + " subtype=" + subtype +
+                " order=" + results.stream()
+                .map(area -> area.name + "#" + area.id + ":" + areaDistances.get(area))
+                .collect(java.util.stream.Collectors.toList()));
         return results;
     }
 

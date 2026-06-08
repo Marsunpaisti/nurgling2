@@ -2,6 +2,7 @@ package nurgling.actions.bots;
 
 import nurgling.NGameUI;
 import nurgling.NMapView;
+import nurgling.NUtils;
 import nurgling.actions.Action;
 import nurgling.actions.Results;
 import nurgling.areas.NArea;
@@ -41,6 +42,9 @@ public class GotoArea implements Action {
             return Results.ERROR("ChunkNav not initialized");
         }
 
-        return chunkNav.navigateToArea(area, gui);
+        NUtils.debugMsg(gui, "[GotoArea] start area=" + area.name + "#" + area.id + " visible=" + area.isVisible());
+        Results result = chunkNav.navigateToArea(area, gui);
+        NUtils.debugMsg(gui, "[GotoArea] result=" + result.IsSuccess() + " area=" + area.name + "#" + area.id);
+        return result;
     }
 }

@@ -65,11 +65,13 @@ public class ChunkNavPlanner {
      */
     public ChunkPath planToArea(NArea area) {
         if (area == null) return null;
+        NGameUI gui = NUtils.getGameUI();
 
         // Get player's current chunk and local position using direct MCache lookup
         // This is more reliable than ngob.grid_id which can be stale
         PlayerLocation playerLoc = getPlayerLocation();
         if (playerLoc == null) {
+            NUtils.debugMsg(gui, "[ChunkNav] planToArea no player location area=" + area.name + "#" + area.id);
             return null;
         }
 
@@ -79,8 +81,19 @@ public class ChunkNavPlanner {
         // Find target chunk and local coord using STORED data (not live visibility)
         TargetLocation target = findTargetLocation(area);
         if (target == null) {
+            NUtils.debugMsg(gui, "[ChunkNav] planToArea no target area=" + area.name + "#" + area.id +
+                    " start=" + describeChunk(startChunkId) +
+                    " areaGrids=" + (area.space != null && area.space.space != null ? area.space.space.keySet() : "null"));
             return null;
         }
+
+        NUtils.debugMsg(gui, "[ChunkNav] planToArea area=" + area.name + "#" + area.id +
+                " startGrid=" + startChunkId +
+                " startLocal=" + playerLocal +
+                " start=" + describeChunk(startChunkId) +
+                " targetGrid=" + target.chunkId +
+                " targetLocal=" + target.localCoord +
+                " target=" + describeChunk(target.chunkId));
 
         // Use unified pathfinder to get complete tile-level path
         UnifiedTilePathfinder.UnifiedPath unifiedPath = unifiedPathfinder.findPath(
@@ -89,6 +102,9 @@ public class ChunkNavPlanner {
         );
 
         if (unifiedPath == null || !unifiedPath.reachable) {
+            NUtils.debugMsg(gui, "[ChunkNav] planToArea result area=" + area.name + "#" + area.id +
+                    " reachable=" + (unifiedPath != null && unifiedPath.reachable) +
+                    " steps=" + (unifiedPath != null ? unifiedPath.steps.size() : -1));
             return null;
         }
 
@@ -434,6 +450,7 @@ public class ChunkNavPlanner {
      * The area center might be blocked by objects inside the area.
      */
     private TargetLocation findTargetLocation(NArea area) {
+        NGameUI gui = NUtils.getGameUI();
         // Strategy 1: Use area's stored grid references
         if (area.space != null && area.space.space != null) {
             for (Long gridId : area.space.space.keySet()) {
@@ -442,8 +459,19 @@ public class ChunkNavPlanner {
                     // Get area bounds in this chunk and find walkable tile near edge
                     Coord walkableNearArea = findWalkableNearAreaEdge(area, chunk);
                     if (walkableNearArea != null) {
+                        NUtils.debugMsg(gui, "[ChunkNav] target area=" + area.name + "#" + area.id +
+                                " strategy=stored-edge grid=" + gridId +
+                                " local=" + walkableNearArea +
+                                " chunk=" + describeChunk(gridId));
                         return new TargetLocation(gridId, walkableNearArea);
                     }
+                    NUtils.debugMsg(gui, "[ChunkNav] target no edge tile area=" + area.name + "#" + area.id +
+                            " grid=" + gridId +
+                            " chunk=" + describeChunk(gridId));
+                }
+                else {
+                    NUtils.debugMsg(gui, "[ChunkNav] target missing chunk area=" + area.name + "#" + area.id +
+                            " grid=" + gridId);
                 }
             }
         }
@@ -462,6 +490,10 @@ public class ChunkNavPlanner {
                     // Find walkable tile near this point
                     Coord walkable = findWalkableTileNear(chunk, localCoord);
                     if (walkable != null) {
+                        NUtils.debugMsg(gui, "[ChunkNav] target area=" + area.name + "#" + area.id +
+                                " strategy=center-scan grid=" + chunk.gridId +
+                                " local=" + walkable +
+                                " chunk=" + describeChunk(chunk.gridId));
                         return new TargetLocation(chunk.gridId, walkable);
                     }
                 }
@@ -481,6 +513,10 @@ public class ChunkNavPlanner {
                 if (chunk != null) {
                     Coord walkable = findWalkableTileNear(chunk, areaLocal);
                     if (walkable != null) {
+                        NUtils.debugMsg(gui, "[ChunkNav] target area=" + area.name + "#" + area.id +
+                                " strategy=live-fallback grid=" + chunkId +
+                                " local=" + walkable +
+                                " chunk=" + describeChunk(chunkId));
                         return new TargetLocation(chunkId, walkable);
                     }
                 }
@@ -488,6 +524,21 @@ public class ChunkNavPlanner {
         }
 
         return null;
+    }
+
+    private String describeChunk(long gridId) {
+        ChunkNavData chunk = graph.getChunk(gridId);
+        if (chunk == null) {
+            return "missing";
+        }
+        return "layer=" + chunk.layer +
+                ",instance=" + chunk.instanceId +
+                ",origin=" + chunk.worldTileOrigin +
+                ",neighbors=[N" + chunk.neighborNorth +
+                ",S" + chunk.neighborSouth +
+                ",E" + chunk.neighborEast +
+                ",W" + chunk.neighborWest + "]" +
+                ",portals=" + chunk.portals.size();
     }
 
     /**
