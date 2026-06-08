@@ -708,6 +708,8 @@ public class MapFile {
 
 	public static void saveols(Message fp, Collection<Overlay> ols) {
 	    for(Overlay ol : ols) {
+		if(skipNurglingCustomOverlay(ol.olid.name))
+		    continue;
 		fp.addstring(ol.olid.name);
 		fp.adduint16(ol.olid.savever());
 		for(int i = 0; i < ol.ol.length; i += 8) {
@@ -720,6 +722,23 @@ public class MapFile {
 		}
 	    }
 	    fp.addstring("");
+	}
+
+	private static boolean skipNurglingCustomOverlay(String name) {
+	    return(isNurglingAreaOverlay(name) ||
+		   name.equals("map/overlay/minesup-o") ||
+		   name.equals("map/overlay/areash-o"));
+	}
+
+	private static boolean isNurglingAreaOverlay(String name) {
+	    String prefix = "map/overlay/areas-o";
+	    if(!name.startsWith(prefix))
+		return(false);
+	    for(int i = prefix.length(); i < name.length(); i++) {
+		if(!Character.isDigit(name.charAt(i)))
+		    return(false);
+	    }
+	    return(name.length() > prefix.length());
 	}
 
 	public static void loadols(Collection<Overlay> buf, Message fp, String nm) {
