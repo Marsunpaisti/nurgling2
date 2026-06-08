@@ -1445,7 +1445,7 @@ public class NMapView extends MapView
             String displayMsg;
             switch (newMode) {
                 case "FILLED":
-                    displayMsg = "Filled (depth-aware)";
+                    displayMsg = "Filled (always visible)";
                     break;
                 case "FILLED_ALWAYS":
                     displayMsg = "Filled (always visible)";

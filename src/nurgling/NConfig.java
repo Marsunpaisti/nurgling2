@@ -211,8 +211,8 @@ public class NConfig
 
     public enum BBDisplayMode
     {
-        FILLED,           // Fill and outline both with depth test (both hidden behind objects)
-        FILLED_ALWAYS,    // Fill and outline both without depth test (always visible)
+        FILLED,           // Fill and outline both without depth test (always visible)
+        FILLED_ALWAYS,    // Backward-compatible alias for filled always-visible boxes
         OUTLINE,          // Outline only with depth test (hidden behind objects)
         OUTLINE_ALWAYS,   // Outline only without depth test (always visible)
         OFF               // Disabled

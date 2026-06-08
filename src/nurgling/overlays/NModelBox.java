@@ -97,12 +97,15 @@ public class NModelBox extends Sprite implements RenderTree.Node {
 
             Color fillColor = NConfig.getColor(NConfig.Key.boxFillColor, new Color(227, 28, 1, 195));
             Color edgeColor = NConfig.getColor(NConfig.Key.boxEdgeColor, new Color(224, 193, 79, 255));
-            boolean outlineDepthTest = !mode.equals("OUTLINE_ALWAYS") && !mode.equals("FILLED_ALWAYS");
+            this.lmat = lineMaterial(mode, clickable, edgeColor, (Integer) NConfig.get(NConfig.Key.boxLineWidth));
+            this.emat = fillMaterial(mode, clickable, fillColor);
+        }
 
-            // Build outline material
+        static Pipe.Op lineMaterial(String mode, boolean clickable, Color edgeColor, int lineWidth) {
+            boolean alwaysVisibleOutline = mode.equals("OUTLINE_ALWAYS") || mode.equals("FILLED_ALWAYS") || mode.equals("FILLED");
             ArrayList<Pipe.Op> lineOps = new ArrayList<>();
             lineOps.add(new Rendered.Order.Default(6000));
-            if (!outlineDepthTest) {
+            if (alwaysVisibleOutline) {
                 lineOps.add(States.Depthtest.none);
                 lineOps.add(States.maskdepth);
             }
@@ -110,16 +113,22 @@ public class NModelBox extends Sprite implements RenderTree.Node {
                     BlendMode.Factor.SRC_ALPHA, BlendMode.Factor.INV_SRC_ALPHA,
                     BlendMode.Function.ADD, BlendMode.Factor.ONE, BlendMode.Factor.INV_SRC_ALPHA)));
             lineOps.add(new States.Facecull());
-            lineOps.add(new States.LineWidth((Integer) NConfig.get(NConfig.Key.boxLineWidth)));
+            lineOps.add(new States.LineWidth(lineWidth));
             if (!clickable) {
                 lineOps.add(Clickable.No);
             }
             lineOps.add(new BaseColor(edgeColor));
-            this.lmat = Pipe.Op.compose(lineOps.toArray(new Pipe.Op[0]));
+            return Pipe.Op.compose(lineOps.toArray(new Pipe.Op[0]));
+        }
 
-            // Build fill material
+        static Pipe.Op fillMaterial(String mode, boolean clickable, Color fillColor) {
+            boolean alwaysVisibleFill = mode.equals("FILLED_ALWAYS") || mode.equals("FILLED");
             ArrayList<Pipe.Op> fillOps = new ArrayList<>();
             fillOps.add(new Rendered.Order.Default(6000));
+            if (alwaysVisibleFill) {
+                fillOps.add(States.Depthtest.none);
+                fillOps.add(States.maskdepth);
+            }
             fillOps.add(FragColor.blend(new BlendMode(BlendMode.Function.ADD,
                     BlendMode.Factor.SRC_ALPHA, BlendMode.Factor.INV_SRC_ALPHA,
                     BlendMode.Function.ADD, BlendMode.Factor.ONE, BlendMode.Factor.INV_SRC_ALPHA)));
@@ -127,26 +136,32 @@ public class NModelBox extends Sprite implements RenderTree.Node {
                 fillOps.add(Clickable.No);
             }
             fillOps.add(new BaseColor(fillColor));
-            this.emat = Pipe.Op.compose(fillOps.toArray(new Pipe.Op[0]));
+            return Pipe.Op.compose(fillOps.toArray(new Pipe.Op[0]));
         }
 
         static Coord3f renderPoint(Coord2d point) {
             return new Coord3f((float) point.x, (float) -point.y, 1.0f);
         }
 
-        private FillBuffer fill(VertexArray.Buffer dst, Environment env) {
-            FillBuffer ret = env.fillbuf(dst);
-            ByteBuffer buf = ret.push();
+        static Coord3f[] renderVertices(NBoundingBox.Polygon pol) {
+            Coord3f[] vertices = new Coord3f[4];
             if (pol.neg) {
-                for (int i = 3; i >= 0; i--) {
-                    Coord3f point = renderPoint(pol.vertices[i]);
-                    buf.putFloat(point.x).putFloat(point.y).putFloat(point.z);
+                for (int i = 0; i < 4; i++) {
+                    vertices[i] = renderPoint(pol.vertices[i]);
                 }
             } else {
                 for (int i = 0; i < 4; i++) {
-                    Coord3f point = renderPoint(pol.vertices[i]);
-                    buf.putFloat(point.x).putFloat(point.y).putFloat(point.z);
+                    vertices[i] = renderPoint(pol.vertices[3 - i]);
                 }
+            }
+            return vertices;
+        }
+
+        private FillBuffer fill(VertexArray.Buffer dst, Environment env) {
+            FillBuffer ret = env.fillbuf(dst);
+            ByteBuffer buf = ret.push();
+            for (Coord3f point : renderVertices(pol)) {
+                buf.putFloat(point.x).putFloat(point.y).putFloat(point.z);
             }
             return (ret);
         }
