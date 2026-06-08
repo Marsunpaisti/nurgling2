@@ -14,12 +14,19 @@ public class ScenarioRunner implements Action {
     }
 
     public boolean disablesStacks() {
+        return stackMode() == BotDescriptor.StackMode.DISABLED;
+    }
+
+    public BotDescriptor.StackMode stackMode() {
+        BotDescriptor.StackMode mode = BotDescriptor.StackMode.UNCHANGED;
         for (BotStep step : scenario.getSteps()) {
             BotDescriptor desc = BotRegistry.byId(step.getId());
-            if (desc != null && desc.disStacks)
-                return true;
+            if (desc != null && desc.stackMode == BotDescriptor.StackMode.DISABLED)
+                return BotDescriptor.StackMode.DISABLED;
+            if (desc != null && desc.stackMode == BotDescriptor.StackMode.ENABLED)
+                mode = BotDescriptor.StackMode.ENABLED;
         }
-        return false;
+        return mode;
     }
 
     @Override

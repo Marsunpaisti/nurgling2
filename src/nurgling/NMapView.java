@@ -11,6 +11,7 @@ import haven.res.ui.gobcp.Gobcopy;
 import haven.BuddyWnd;
 import nurgling.actions.QuickActionBot;
 import nurgling.actions.bots.ScenarioRunner;
+import nurgling.actions.bots.registry.BotDescriptor;
 import nurgling.contextmenu.GobContextAction;
 import nurgling.contextmenu.GobContextRegistry;
 import nurgling.contextmenu.NTileContextMenu;
@@ -916,7 +917,8 @@ public class NMapView extends MapView
                 final NUI boundUI = NUtils.getUI();
                 final NGameUI boundGui = (boundUI != null) ? boundUI.gui : null;
                 if (boundGui == null) return;
-                final boolean disableStacks = scenario != null && new ScenarioRunner(scenario).disablesStacks();
+                final ScenarioRunner scenarioRunner = scenario != null ? new ScenarioRunner(scenario) : null;
+                final BotDescriptor.StackMode stackMode = scenarioRunner != null ? scenarioRunner.stackMode() : BotDescriptor.StackMode.UNCHANGED;
 
                 Thread t;
                 t = new Thread(() -> {
@@ -952,11 +954,14 @@ public class NMapView extends MapView
                             return;
                         }
                         System.out.println("[NMapView] Running scenario: " + scenario.getName());
-                        if (disableStacks && !NUtils.stackSwitch(false)) {
-                            System.out.println("[NMapView] WARNING: Failed to disable inventory stacking before autorunner scenario");
+                        if (stackMode != BotDescriptor.StackMode.UNCHANGED && !NUtils.stackSwitch(stackMode == BotDescriptor.StackMode.ENABLED)) {
+                            System.out.println("[NMapView] WARNING: Failed to set inventory stacking to " + stackMode + " before autorunner scenario");
                         }
-                        ScenarioRunner runner = new ScenarioRunner(scenario);
-                        runner.run(boundGui);
+                        try {
+                            scenarioRunner.run(boundGui);
+                        } finally {
+                            NUtils.stackSwitch(true);
+                        }
                         System.out.println("[NMapView] Scenario completed, logging out...");
 
                         boundGui.act("lo");
@@ -970,7 +975,7 @@ public class NMapView extends MapView
                         ThreadLocalUI.clear();
                     }
                 });
-                boundGui.biw.addObserve(t, disableStacks);
+                boundGui.biw.addObserve(t, stackMode);
                 t.start();
             }
         }

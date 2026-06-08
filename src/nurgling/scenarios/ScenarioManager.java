@@ -86,7 +86,7 @@ public class ScenarioManager {
             if(scenario.getName().equals(scenarioName)) {
                 nurgling.actions.bots.ScenarioRunner runner = new nurgling.actions.bots.ScenarioRunner(scenario);
                 BotExecutor.runAsync("ScenarioRunner-" + scenarioName,
-                    runner, runner.disablesStacks());
+                    runner, runner.stackMode());
                 return;
             }
         }
