@@ -888,10 +888,12 @@ public class NUtils
         ChunkNavManager chunkNav = ((NMapView) currentGui.map).getChunkNavManager();
         if (chunkNav != null && chunkNav.isInitialized())
         {
+            long pathfindingStartedAt = System.nanoTime();
             ChunkPath bestPath = nurgling.navigation.AreaNavigationHelper.findShortestPathToAreaCorners(area, chunkNav);
+            double pathfindingMs = (System.nanoTime() - pathfindingStartedAt) / 1_000_000.0;
             if (bestPath != null)
             {
-                debugMsg(currentGui, "[NavArea] chunk path cost=" + bestPath.totalCost + " waypoints=" + bestPath.size() + " area=" + area.name + "#" + area.id);
+                debugMsg(currentGui, "[NavArea] chunk path cost=" + bestPath.totalCost + " waypoints=" + bestPath.size() + " timeMs=" + pathfindingMs + " area=" + area.name + "#" + area.id);
                 boolean success = chunkNav.navigateWithPath(bestPath, area, currentGui).IsSuccess();
                 debugMsg(currentGui, "[NavArea] chunk navigate success=" + success + " area=" + area.name + "#" + area.id);
                 return success;
