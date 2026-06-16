@@ -292,7 +292,7 @@ public class KFC implements Action {
             }
             Optional<CoopInfo> bestBreedingCoop = speciesCoops.stream()
                     .filter(coop -> coop.maleQuality != -1 && !coop.femaleQualities.isEmpty())
-                    .findFirst();
+                    .max(coopComparator);
             if (bestBreedingCoop.isEmpty()) {
                 continue;
             }
