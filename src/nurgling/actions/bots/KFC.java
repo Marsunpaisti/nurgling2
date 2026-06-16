@@ -22,48 +22,104 @@ import nurgling.widgets.Specialisation;
 import java.util.*;
 
 /**
- * KFC - Chicken Manager Bot
- * Manages chicken coops and incubators: replaces low-quality roosters/hens with better ones,
- * transfers eggs to incubators, and processes low-quality chickens.
+ * KFC - Chicken and Duck Manager Bot
+ * Manages chicken coops and incubators: replaces low-quality males/females with better ones,
+ * transfers babies to incubators, and processes low-quality birds.
  */
 public class KFC implements Action {
+
+    enum BirdSpecies {
+        CHICKEN,
+        DUCK
+    }
+
+    enum BirdType {
+        MALE,
+        FEMALE,
+        BABY,
+        EGG,
+        DEAD_MALE,
+        DEAD_FEMALE,
+        PLUCKED_MALE,
+        PLUCKED_FEMALE,
+        CLEANED
+    }
+
+    private static final EnumMap<BirdSpecies, EnumMap<BirdType, List<String>>> BIRD_RESOURCES = new EnumMap<>(BirdSpecies.class);
+
+    static {
+        addBird(BirdSpecies.CHICKEN, BirdType.MALE, "gfx/invobjs/rooster");
+        addBird(BirdSpecies.CHICKEN, BirdType.FEMALE, "gfx/invobjs/hen");
+        addBird(BirdSpecies.CHICKEN, BirdType.BABY, "gfx/invobjs/chick");
+        addBird(BirdSpecies.CHICKEN, BirdType.EGG, "gfx/invobjs/egg-chicken");
+        addBird(BirdSpecies.CHICKEN, BirdType.DEAD_MALE, "gfx/invobjs/rooster-dead");
+        addBird(BirdSpecies.CHICKEN, BirdType.DEAD_FEMALE, "gfx/invobjs/hen-dead");
+        addBird(BirdSpecies.CHICKEN, BirdType.PLUCKED_MALE, "gfx/invobjs/chicken-plucked");
+        addBird(BirdSpecies.CHICKEN, BirdType.PLUCKED_FEMALE, "gfx/invobjs/chicken-plucked");
+        addBird(BirdSpecies.CHICKEN, BirdType.CLEANED, "gfx/invobjs/chicken-cleaned");
+
+        addBird(BirdSpecies.DUCK, BirdType.MALE, "gfx/invobjs/duckdrake");
+        addBird(BirdSpecies.DUCK, BirdType.FEMALE, "gfx/invobjs/duckhen");
+        addBird(BirdSpecies.DUCK, BirdType.BABY, "gfx/invobjs/duckling");
+        addBird(BirdSpecies.DUCK, BirdType.EGG, "gfx/invobjs/egg-duck");
+        addBird(BirdSpecies.DUCK, BirdType.DEAD_MALE, "gfx/invobjs/duckdrake-dead");
+        addBird(BirdSpecies.DUCK, BirdType.DEAD_FEMALE, "gfx/invobjs/duckhen-dead");
+        addBird(BirdSpecies.DUCK, BirdType.PLUCKED_MALE, "gfx/invobjs/duckdrake-plucked");
+        addBird(BirdSpecies.DUCK, BirdType.PLUCKED_FEMALE, "gfx/invobjs/duckhen-plucked");
+        addBird(BirdSpecies.DUCK, BirdType.CLEANED, "gfx/invobjs/duck-cleaned");
+    }
+
+    private static void addBird(BirdSpecies species, BirdType type, String... resources) {
+        BIRD_RESOURCES.computeIfAbsent(species, k -> new EnumMap<>(BirdType.class)).put(type, Arrays.asList(resources));
+    }
+
+    static boolean isBirdResource(String resourceName, BirdSpecies species, BirdType type) {
+        if (resourceName == null) {
+            return false;
+        }
+        List<String> resources = BIRD_RESOURCES.get(species).get(type);
+        return resources != null && resources.contains(resourceName);
+    }
 
     // Coop info class
     private static class CoopInfo {
         String gobHash;
-        double roosterQuality;
-        ArrayList<Float> henQualities = new ArrayList<>();
+        BirdSpecies species;
+        double maleQuality;
+        ArrayList<Float> femaleQualities = new ArrayList<>();
 
-        public CoopInfo(String gobHash, double roosterQuality) {
+        public CoopInfo(String gobHash, BirdSpecies species, double maleQuality) {
             this.gobHash = gobHash;
-            this.roosterQuality = roosterQuality;
+            this.species = species;
+            this.maleQuality = maleQuality;
         }
     }
 
     // Incubator info class
     private static class IncubatorInfo {
         String gobHash;
-        double chickenQuality;
+        double birdQuality;
 
-        public IncubatorInfo(String gobHash, double chickenQuality) {
+        public IncubatorInfo(String gobHash, double birdQuality) {
             this.gobHash = gobHash;
-            this.chickenQuality = chickenQuality;
+            this.birdQuality = birdQuality;
         }
     }
 
-    // Maximum chicks per incubator
-    private static final int MAX_CHICKS_PER_INCUBATOR = 24;
+    // Maximum babies per incubator
+    private static final int MAX_BABIES_PER_INCUBATOR = 24;
+    private static final String COOP_WINDOW = "Chicken Coop";
     
     // Comparator for sorting incubators by quality
-    Comparator<IncubatorInfo> incubatorComparator = (o1, o2) -> Double.compare(o1.chickenQuality, o2.chickenQuality);
+    Comparator<IncubatorInfo> incubatorComparator = (o1, o2) -> Double.compare(o1.birdQuality, o2.birdQuality);
 
     // Comparator for sorting coops
     Comparator<CoopInfo> coopComparator = (o1, o2) -> {
-        int res = Double.compare(o1.roosterQuality, o2.roosterQuality);
+        int res = Double.compare(o1.maleQuality, o2.maleQuality);
         if (res == 0) {
-            if (!o1.henQualities.isEmpty() && !o2.henQualities.isEmpty()) {
-                double avgQuality1 = o1.henQualities.stream().mapToDouble(Float::doubleValue).average().orElse(0);
-                double avgQuality2 = o2.henQualities.stream().mapToDouble(Float::doubleValue).average().orElse(0);
+            if (!o1.femaleQualities.isEmpty() && !o2.femaleQualities.isEmpty()) {
+                double avgQuality1 = o1.femaleQualities.stream().mapToDouble(Float::doubleValue).average().orElse(0);
+                double avgQuality2 = o2.femaleQualities.stream().mapToDouble(Float::doubleValue).average().orElse(0);
                 res = Double.compare(avgQuality1, avgQuality2);
             }
         }
@@ -141,9 +197,14 @@ public class KFC implements Action {
         }
 
         // Read coop contents and sort them
-        ArrayList<CoopInfo> coopInfos = new ArrayList<>();
-        ArrayList<IncubatorInfo> qcocks = new ArrayList<>();
-        ArrayList<IncubatorInfo> qhens = new ArrayList<>();
+        EnumMap<BirdSpecies, ArrayList<CoopInfo>> coopInfos = new EnumMap<>(BirdSpecies.class);
+        EnumMap<BirdSpecies, ArrayList<IncubatorInfo>> qmales = new EnumMap<>(BirdSpecies.class);
+        EnumMap<BirdSpecies, ArrayList<IncubatorInfo>> qfemales = new EnumMap<>(BirdSpecies.class);
+        for (BirdSpecies species : BirdSpecies.values()) {
+            coopInfos.put(species, new ArrayList<>());
+            qmales.put(species, new ArrayList<>());
+            qfemales.put(species, new ArrayList<>());
+        }
         
         // Navigate to chicken area and read coop contents
         NUtils.navigateToArea(chickenArea);
@@ -152,33 +213,32 @@ public class KFC implements Action {
             if (gob == null) continue;
             
             new PathFinder(gob).run(gui);
-            if (!(new OpenTargetContainer("Chicken Coop", gob).run(gui).IsSuccess())) {
+            if (!(new OpenTargetContainer(COOP_WINDOW, gob).run(gui).IsSuccess())) {
                 return Results.FAIL();
             }
 
-            double roosterQuality;
-            if (gui.getInventory("Chicken Coop").getItem(new NAlias("Cock")) != null) {
-                NGItem roost = (NGItem) gui.getInventory("Chicken Coop").getItem(new NAlias("Cock")).item;
-                roosterQuality = roost.quality;
-            } else {
-                roosterQuality = -1;
+            for (BirdSpecies species : BirdSpecies.values()) {
+                WItem male = getBirdItem(gui.getInventory(COOP_WINDOW), species, BirdType.MALE);
+                double maleQuality = male != null ? itemQuality(male) : -1;
+                CoopInfo coopInfo = new CoopInfo(hash, species, maleQuality);
+
+                ArrayList<WItem> females = getBirdItems(gui.getInventory(COOP_WINDOW), species, BirdType.FEMALE);
+                for (WItem female : females) {
+                    coopInfo.femaleQualities.add(itemQuality(female));
+                }
+                coopInfo.femaleQualities.sort(Float::compareTo);
+
+                if (maleQuality != -1 || !coopInfo.femaleQualities.isEmpty()) {
+                    coopInfos.get(species).add(coopInfo);
+                }
             }
 
-            CoopInfo coopInfo = new CoopInfo(hash, roosterQuality);
-
-            ArrayList<WItem> hens = gui.getInventory("Chicken Coop").getItems(new NAlias("Hen"));
-            for (WItem hen : hens) {
-                coopInfo.henQualities.add(((NGItem) hen.item).quality);
-            }
-            coopInfo.henQualities.sort(Float::compareTo);
-
-            coopInfos.add(coopInfo);
-
-            new CloseTargetContainer("Chicken Coop").run(gui);
+            new CloseTargetContainer(COOP_WINDOW).run(gui);
         }
 
-        // Sort coops by rooster quality and average hen quality
-        coopInfos.sort(coopComparator.reversed());
+        for (BirdSpecies species : BirdSpecies.values()) {
+            coopInfos.get(species).sort(coopComparator.reversed());
+        }
 
         // Navigate to incubator area and read contents
         NUtils.navigateToArea(incubatorArea);
@@ -187,69 +247,60 @@ public class KFC implements Action {
             if (gob == null) continue;
             
             new PathFinder(gob).run(gui);
-            if (!(new OpenTargetContainer("Chicken Coop", gob).run(gui).IsSuccess())) {
+            if (!(new OpenTargetContainer(COOP_WINDOW, gob).run(gui).IsSuccess())) {
                 return Results.FAIL();
             }
 
-            ArrayList<WItem> roosters = gui.getInventory("Chicken Coop").getItems(new NAlias("Cock"));
-            for (WItem rooster : roosters) {
-                qcocks.add(new IncubatorInfo(hash, ((NGItem) rooster.item).quality));
+            for (BirdSpecies species : BirdSpecies.values()) {
+                ArrayList<WItem> males = getBirdItems(gui.getInventory(COOP_WINDOW), species, BirdType.MALE);
+                for (WItem male : males) {
+                    qmales.get(species).add(new IncubatorInfo(hash, itemQuality(male)));
+                }
+
+                ArrayList<WItem> females = getBirdItems(gui.getInventory(COOP_WINDOW), species, BirdType.FEMALE);
+                for (WItem female : females) {
+                    qfemales.get(species).add(new IncubatorInfo(hash, itemQuality(female)));
+                }
             }
 
-            ArrayList<WItem> hens = gui.getInventory("Chicken Coop").getItems(new NAlias("Hen"));
-            for (WItem hen : hens) {
-                qhens.add(new IncubatorInfo(hash, ((NGItem) hen.item).quality));
+            new CloseTargetContainer(COOP_WINDOW).run(gui);
+        }
+
+        for (BirdSpecies species : BirdSpecies.values()) {
+            Results maleResult = processMales(gui, species, coopInfos.get(species), qmales.get(species));
+            if (!maleResult.IsSuccess()) {
+                return maleResult;
             }
 
-            new CloseTargetContainer("Chicken Coop").run(gui);
+            Results femaleResult = processFemales(gui, species, coopInfos.get(species), qfemales.get(species));
+            if (!femaleResult.IsSuccess()) {
+                return femaleResult;
+            }
         }
 
-        Results roosterResult = processRoosters(gui, coopInfos, qcocks);
-        if (!roosterResult.IsSuccess()) {
-            return roosterResult;
-        }
+        transferBabies(gui, coopHashes, incubatorHashes);
 
-        Results henResult = processHens(gui, coopInfos, qhens);
-        if (!henResult.IsSuccess()) {
-            return henResult;
-        }
-
-        // Transfer chicks from chicken coops to incubators
-        transferChicks(gui, coopHashes, incubatorHashes);
-
-        // Determine threshold quality for eggs from best coop
-        if (coopInfos.isEmpty()) {
+        if (coopHashes.isEmpty()) {
             return Results.ERROR("No chicken coops found!");
         }
-        
-        context.goToArea(Specialisation.SpecName.chicken);
-        Gob bestCoopGob = Finder.findGob(coopInfos.get(0).gobHash);
-        if (bestCoopGob == null) {
-            return Results.ERROR("Best coop not found!");
-        }
-        
-        new PathFinder(bestCoopGob).run(gui);
-        if (!(new OpenTargetContainer("Chicken Coop", bestCoopGob).run(gui).IsSuccess())) {
-            return Results.FAIL();
+
+        EnumMap<BirdSpecies, Double> eggThresholds = new EnumMap<>(BirdSpecies.class);
+        for (BirdSpecies species : BirdSpecies.values()) {
+            ArrayList<CoopInfo> speciesCoops = coopInfos.get(species);
+            if (speciesCoops.isEmpty()) {
+                continue;
+            }
+            CoopInfo bestCoop = speciesCoops.get(0);
+            if (bestCoop.femaleQualities.isEmpty()) {
+                if (species == BirdSpecies.CHICKEN) {
+                    return Results.ERROR("No hens in best coop");
+                }
+                continue;
+            }
+            eggThresholds.put(species, (double) bestCoop.femaleQualities.get(0));
         }
 
-        // Get quality threshold from top hens
-        ArrayList<WItem> topHens = gui.getInventory("Chicken Coop").getItems(new NAlias("Hen"));
-        ArrayList<Float> qtop = new ArrayList<>();
-        for (WItem top : topHens) {
-            qtop.add(((NGItem) top.item).quality);
-        }
-        
-        if (qtop.isEmpty()) {
-            return Results.ERROR("No hens in best coop");
-        }
-        
-        qtop.sort(Float::compareTo);
-        double chicken_th = qtop.get(0);
-        new CloseTargetContainer("Chicken Coop").run(gui);
-
-        // Collect low quality eggs and dispose via FreeInventory2 (like Butcher)
-        collectAndDisposeLowQualityEggs(gui, coopHashes, chicken_th);
+        collectAndDisposeLowQualityEggs(gui, coopHashes, eggThresholds);
 
         new FreeInventory2(context).run(gui);
         return Results.SUCCESS();
@@ -260,7 +311,7 @@ public class KFC implements Action {
         for (String hash : hashes) {
             Gob gob = Finder.findGob(hash);
             if (gob != null) {
-                Container cand = new Container(gob, "Chicken Coop", area);
+                Container cand = new Container(gob, COOP_WINDOW, area);
                 cand.initattr(Container.Space.class);
                 containers.add(cand);
             }
@@ -268,65 +319,62 @@ public class KFC implements Action {
         return containers;
     }
     
-    private void transferChicks(NGameUI gui, ArrayList<String> coopHashes, ArrayList<String> incubatorHashes) throws InterruptedException {
-        NAlias chickAlias = new NAlias(new ArrayList<>(List.of("Chick")), new ArrayList<>(List.of("Egg")));
-        
-        // Collect chicks from chicken coops
+    private void transferBabies(NGameUI gui, ArrayList<String> coopHashes, ArrayList<String> incubatorHashes) throws InterruptedException {
+        // Collect chicks and ducklings from chicken coops.
         context.goToArea(Specialisation.SpecName.chicken);
         for (String hash : coopHashes) {
             Gob gob = Finder.findGob(hash);
             if (gob == null) continue;
             
             new PathFinder(gob).run(gui);
-            if (!(new OpenTargetContainer("Chicken Coop", gob).run(gui).IsSuccess())) {
+            if (!(new OpenTargetContainer(COOP_WINDOW, gob).run(gui).IsSuccess())) {
                 continue;
             }
             
-            // Transfer all chicks to inventory (exclude Eggs)
-            ArrayList<WItem> chicks = gui.getInventory("Chicken Coop").getItems(chickAlias);
-            for (WItem chick : chicks) {
-                chick.item.wdgmsg("transfer", Coord.z);
+            ArrayList<WItem> babies = getBabyItems(gui.getInventory(COOP_WINDOW));
+            for (WItem baby : babies) {
+                baby.item.wdgmsg("transfer", Coord.z);
             }
             
-            new CloseTargetContainer("Chicken Coop").run(gui);
+            new CloseTargetContainer(COOP_WINDOW).run(gui);
             
             // If inventory getting full, transfer to incubators (don't kill yet)
             if (shouldDropOffItems(gui)) {
-                transferChicksToIncubators(gui, incubatorHashes);
+                transferBabiesToIncubators(gui, incubatorHashes);
                 context.goToArea(Specialisation.SpecName.chicken);
             }
         }
         
-        // Transfer all remaining chicks to incubators (fills all available space)
-        transferChicksToIncubators(gui, incubatorHashes);
+        // Transfer all remaining babies to incubators (fills all available space)
+        transferBabiesToIncubators(gui, incubatorHashes);
         
-        // Only after ALL incubators are full, kill excess chicks
-        killExcessChicks(gui, chickAlias);
+        // Only after ALL incubators are full, kill excess babies
+        killExcessBabies(gui);
     }
     
-    private void transferChicksToIncubators(NGameUI gui, ArrayList<String> incubatorHashes) throws InterruptedException {
-        NAlias chickAlias = new NAlias(new ArrayList<>(List.of("Chick")), new ArrayList<>(List.of("Egg")));
-        ArrayList<WItem> chicks = gui.getInventory().getItems(chickAlias);
-        if (chicks.isEmpty()) return;
+    private void transferBabiesToIncubators(NGameUI gui, ArrayList<String> incubatorHashes) throws InterruptedException {
+        NAlias babyAlias = babyAlias();
+        ArrayList<WItem> babies = getBabyItems(gui.getInventory());
+        if (babies.isEmpty()) return;
         
         context.goToArea(Specialisation.SpecName.incubator);
         for (String hash : incubatorHashes) {
-            chicks = gui.getInventory().getItems(chickAlias);
-            if (chicks.isEmpty()) break;
+            babies = getBabyItems(gui.getInventory());
+            if (babies.isEmpty()) break;
             
             Gob gob = Finder.findGob(hash);
             if (gob == null) continue;
             
-            // Create container with ItemCount for chick tracking
-            Container incubatorContainer = new Container(gob, "Chicken Coop", null);
-            Container.ItemCount itemCount = incubatorContainer.initItemCount(chickAlias, MAX_CHICKS_PER_INCUBATOR);
+            // ItemCount is alias-based, so use precise baby display names and exclude eggs.
+            Container incubatorContainer = new Container(gob, COOP_WINDOW, null);
+            Container.ItemCount itemCount = incubatorContainer.initItemCount(babyAlias, MAX_BABIES_PER_INCUBATOR);
             
             new PathFinder(gob).run(gui);
             if (!(new OpenTargetContainer(incubatorContainer).run(gui).IsSuccess())) {
                 continue;
             }
             
-            // Update ItemCount to get current chick count
+            // Update ItemCount to get current baby count
             itemCount.update();
             int canAdd = itemCount.getNeeded();
             
@@ -335,12 +383,12 @@ public class KFC implements Action {
                 continue;
             }
             
-            // Transfer chicks to incubator (up to limit)
+            // Transfer babies to incubator (up to limit)
             int transferred = 0;
-            for (WItem chick : chicks) {
+            for (WItem baby : babies) {
                 if (transferred >= canAdd) break;
-                if (gui.getInventory("Chicken Coop").getNumberFreeCoord(new Coord(2, 2)) > 0) {
-                    chick.item.wdgmsg("transfer", Coord.z);
+                if (gui.getInventory(COOP_WINDOW).getNumberFreeCoord(new Coord(2, 2)) > 0) {
+                    baby.item.wdgmsg("transfer", Coord.z);
                     transferred++;
                 } else {
                     break;
@@ -352,17 +400,17 @@ public class KFC implements Action {
     }
     
     /**
-     * Kill excess chicks that couldn't fit in incubators.
+     * Kill excess chicks and ducklings that couldn't fit in incubators.
      * Wring neck -> wait for "A Bloody Mess" -> drop on ground
      */
-    private void killExcessChicks(NGameUI gui, NAlias chickAlias) throws InterruptedException {
-        ArrayList<WItem> chicks = gui.getInventory().getItems(chickAlias);
+    private void killExcessBabies(NGameUI gui) throws InterruptedException {
+        ArrayList<WItem> babies = getBabyItems(gui.getInventory());
         
-        while (!chicks.isEmpty()) {
-            WItem chick = chicks.get(0);
+        while (!babies.isEmpty()) {
+            WItem baby = babies.get(0);
             
             // Wring neck
-            new SelectFlowerAction("Wring neck", chick).run(gui);
+            new SelectFlowerAction("Wring neck", baby).run(gui);
             
             // Wait for "A Bloody Mess" to appear
             NUtils.addTask(new WaitItems((NInventory) gui.maininv, new NAlias("A Bloody Mess"), 1));
@@ -383,8 +431,8 @@ public class KFC implements Action {
                 });
             }
             
-            // Get remaining chicks
-            chicks = gui.getInventory().getItems(chickAlias);
+            // Get remaining babies
+            babies = getBabyItems(gui.getInventory());
         }
     }
     
@@ -392,26 +440,30 @@ public class KFC implements Action {
      * Collect eggs with quality BELOW threshold and dispose them via FreeInventory2 (like Butcher).
      * Good quality eggs stay in coops for hatching.
      */
-    private void collectAndDisposeLowQualityEggs(NGameUI gui, ArrayList<String> coopHashes, double qualityThreshold) throws InterruptedException {
+    private void collectAndDisposeLowQualityEggs(NGameUI gui, ArrayList<String> coopHashes, EnumMap<BirdSpecies, Double> qualityThresholds) throws InterruptedException {
+        if (qualityThresholds.isEmpty()) return;
+
         context.goToArea(Specialisation.SpecName.chicken);
         for (String hash : coopHashes) {
             Gob gob = Finder.findGob(hash);
             if (gob == null) continue;
             
             new PathFinder(gob).run(gui);
-            if (!(new OpenTargetContainer("Chicken Coop", gob).run(gui).IsSuccess())) {
+            if (!(new OpenTargetContainer(COOP_WINDOW, gob).run(gui).IsSuccess())) {
                 continue;
             }
             
-            // Collect eggs BELOW quality threshold (bad eggs to dispose)
-            ArrayList<WItem> eggs = gui.getInventory("Chicken Coop").getItems(new NAlias("Chicken Egg"));
-            for (WItem egg : eggs) {
-                if (((NGItem) egg.item).quality < qualityThreshold) {
-                    egg.item.wdgmsg("transfer", Coord.z);
+            for (BirdSpecies species : qualityThresholds.keySet()) {
+                double qualityThreshold = qualityThresholds.get(species);
+                ArrayList<WItem> eggs = getBirdItems(gui.getInventory(COOP_WINDOW), species, BirdType.EGG);
+                for (WItem egg : eggs) {
+                    if (itemQuality(egg) < qualityThreshold) {
+                        egg.item.wdgmsg("transfer", Coord.z);
+                    }
                 }
             }
             
-            new CloseTargetContainer("Chicken Coop").run(gui);
+            new CloseTargetContainer(COOP_WINDOW).run(gui);
             
             // If inventory getting full, dispose via FreeInventory2 and return to chicken area
             if (shouldDropOffItems(gui)) {
@@ -422,46 +474,46 @@ public class KFC implements Action {
     }
 
 
-    private Results processRoosters(NGameUI gui, ArrayList<CoopInfo> coopInfos, ArrayList<IncubatorInfo> qcocks) throws InterruptedException {
-        // Sort roosters by quality (best to worst)
-        qcocks.sort(incubatorComparator.reversed());
+    private Results processMales(NGameUI gui, BirdSpecies species, ArrayList<CoopInfo> coopInfos, ArrayList<IncubatorInfo> qmales) throws InterruptedException {
+        // Sort males by quality (best to worst)
+        qmales.sort(incubatorComparator.reversed());
 
-        for (IncubatorInfo roosterInfo : qcocks) {
-            // Navigate to incubator area and open the coop with rooster
+        for (IncubatorInfo maleInfo : qmales) {
+            // Navigate to incubator area and open the coop with male
             context.goToArea(Specialisation.SpecName.incubator);
             
-            Gob roosterGob = Finder.findGob(roosterInfo.gobHash);
-            if (roosterGob == null) continue;
+            Gob maleGob = Finder.findGob(maleInfo.gobHash);
+            if (maleGob == null) continue;
             
-            new PathFinder(roosterGob).run(gui);
-            if (!(new OpenTargetContainer("Chicken Coop", roosterGob).run(gui).IsSuccess())) {
+            new PathFinder(maleGob).run(gui);
+            if (!(new OpenTargetContainer(COOP_WINDOW, maleGob).run(gui).IsSuccess())) {
                 return Results.FAIL();
             }
 
-            // Get rooster from coop inventory
-            WItem rooster = gui.getInventory("Chicken Coop").getItem(new NAlias("Cock"));
-            if (rooster == null) {
-                new CloseTargetContainer("Chicken Coop").run(gui);
+            // Get male from coop inventory
+            WItem male = getBirdItem(gui.getInventory(COOP_WINDOW), species, BirdType.MALE, maleInfo.birdQuality);
+            if (male == null) {
+                new CloseTargetContainer(COOP_WINDOW).run(gui);
                 continue;
             }
-            double roosterQuality = ((NGItem) rooster.item).quality;
+            double maleQuality = itemQuality(male);
 
-            Coord pos = rooster.c.div(Inventory.sqsz);
-            rooster.item.wdgmsg("transfer", Coord.z);
+            Coord pos = male.c.div(Inventory.sqsz);
+            male.item.wdgmsg("transfer", Coord.z);
             Coord finalPos1 = pos;
             NUtils.addTask(new NTask() {
                 @Override
                 public boolean check() {
-                    return gui.getInventory("Chicken Coop").isSlotFree(finalPos1);
+                    return gui.getInventory(COOP_WINDOW).isSlotFree(finalPos1);
                 }
             });
-            new CloseTargetContainer("Chicken Coop").run(gui);
+            new CloseTargetContainer(COOP_WINDOW).run(gui);
 
-            // Find coop with worse rooster and replace it
+            // Find coop with worse male of same species and replace it
             for (CoopInfo coopInfo : coopInfos) {
-                if (coopInfo.roosterQuality < roosterQuality && coopInfo.roosterQuality != -1) {
-                    rooster = gui.getInventory().getItem(new NAlias(Collections.singletonList("Cock"), Collections.singletonList("Dead")));
-                    if (rooster == null) break;
+                if (coopInfo.maleQuality < maleQuality && coopInfo.maleQuality != -1) {
+                    male = getBirdItem(gui.getInventory(), species, BirdType.MALE);
+                    if (male == null) break;
 
                     // Navigate to chicken area and open coop for replacement
                     context.goToArea(Specialisation.SpecName.chicken);
@@ -470,89 +522,89 @@ public class KFC implements Action {
                     if (coopGob == null) continue;
                     
                     new PathFinder(coopGob).run(gui);
-                    if (!(new OpenTargetContainer("Chicken Coop", coopGob).run(gui).IsSuccess())) {
+                    if (!(new OpenTargetContainer(COOP_WINDOW, coopGob).run(gui).IsSuccess())) {
                         return Results.FAIL();
                     }
 
-                    // Get current rooster in coop
-                    WItem oldRooster = gui.getInventory("Chicken Coop").getItem(new NAlias("Cock"));
-                    if (oldRooster == null) {
-                        new CloseTargetContainer("Chicken Coop").run(gui);
+                    // Get current male in coop
+                    WItem oldMale = getBirdItem(gui.getInventory(COOP_WINDOW), species, BirdType.MALE, coopInfo.maleQuality);
+                    if (oldMale == null) {
+                        new CloseTargetContainer(COOP_WINDOW).run(gui);
                         continue;
                     }
 
-                    // Replace rooster
-                    pos = oldRooster.c.div(Inventory.sqsz);
-                    oldRooster.item.wdgmsg("transfer", Coord.z);
+                    // Replace male
+                    pos = oldMale.c.div(Inventory.sqsz);
+                    oldMale.item.wdgmsg("transfer", Coord.z);
                     Coord finalPos = pos;
                     NUtils.addTask(new NTask() {
                         @Override
                         public boolean check() {
-                            return gui.getInventory("Chicken Coop").isSlotFree(finalPos);
+                            return gui.getInventory(COOP_WINDOW).isSlotFree(finalPos);
                         }
                     });
 
-                    NUtils.takeItemToHand(rooster);
-                    gui.getInventory("Chicken Coop").dropOn(pos, "Cock");
+                    NUtils.takeItemToHand(male);
+                    gui.getInventory(COOP_WINDOW).dropOn(pos);
 
                     // Update quality
-                    coopInfo.roosterQuality = roosterQuality;
-                    roosterQuality = ((NGItem) oldRooster.item).quality;
-                    new CloseTargetContainer("Chicken Coop").run(gui);
+                    coopInfo.maleQuality = maleQuality;
+                    maleQuality = itemQuality(oldMale);
+                    new CloseTargetContainer(COOP_WINDOW).run(gui);
                 }
             }
 
-            // Process the rooster (butcher it)
-            rooster = gui.getInventory().getItem(new NAlias(Collections.singletonList("Cock"), Collections.singletonList("Dead")));
-            if (rooster != null) {
-                butcherChicken(gui, rooster, "Cock", "Dead Cock");
+            // Process the male (butcher it)
+            male = getBirdItem(gui.getInventory(), species, BirdType.MALE);
+            if (male != null) {
+                butcherBird(gui, male, species, BirdType.MALE);
             }
         }
         new FreeInventory2(context).run(gui);
         return Results.SUCCESS();
     }
 
-    private Results processHens(NGameUI gui, ArrayList<CoopInfo> coopInfos, ArrayList<IncubatorInfo> qhens) throws InterruptedException {
-        // Sort hens by quality (best to worst)
-        qhens.sort(incubatorComparator.reversed());
+    private Results processFemales(NGameUI gui, BirdSpecies species, ArrayList<CoopInfo> coopInfos, ArrayList<IncubatorInfo> qfemales) throws InterruptedException {
+        // Sort females by quality (best to worst)
+        qfemales.sort(incubatorComparator.reversed());
 
-        for (IncubatorInfo henInfo : qhens) {
-            // Navigate to incubator area and open coop with hen
+        for (IncubatorInfo femaleInfo : qfemales) {
+            // Navigate to incubator area and open coop with female
             context.goToArea(Specialisation.SpecName.incubator);
             
-            Gob henGob = Finder.findGob(henInfo.gobHash);
-            if (henGob == null) continue;
+            Gob femaleGob = Finder.findGob(femaleInfo.gobHash);
+            if (femaleGob == null) continue;
             
-            new PathFinder(henGob).run(gui);
-            if (!(new OpenTargetContainer("Chicken Coop", henGob).run(gui).IsSuccess())) {
+            new PathFinder(femaleGob).run(gui);
+            if (!(new OpenTargetContainer(COOP_WINDOW, femaleGob).run(gui).IsSuccess())) {
                 return Results.FAIL();
             }
 
-            // Get hen from coop inventory
-            WItem hen = gui.getInventory("Chicken Coop").getItem(new NAlias("Hen"));
-            if (hen == null) {
-                new CloseTargetContainer("Chicken Coop").run(gui);
+            // Get female from coop inventory
+            WItem female = getBirdItem(gui.getInventory(COOP_WINDOW), species, BirdType.FEMALE, femaleInfo.birdQuality);
+            if (female == null) {
+                new CloseTargetContainer(COOP_WINDOW).run(gui);
                 continue;
             }
-            float henQuality = ((NGItem) hen.item).quality;
+            float femaleQuality = itemQuality(female);
 
-            Coord pos = hen.c.div(Inventory.sqsz);
-            hen.item.wdgmsg("transfer", Coord.z);
+            Coord pos = female.c.div(Inventory.sqsz);
+            female.item.wdgmsg("transfer", Coord.z);
             Coord finalPos1 = pos;
             NUtils.addTask(new NTask() {
                 @Override
                 public boolean check() {
-                    return gui.getInventory("Chicken Coop").isSlotFree(finalPos1);
+                    return gui.getInventory(COOP_WINDOW).isSlotFree(finalPos1);
                 }
             });
-            new CloseTargetContainer("Chicken Coop").run(gui);
+            new CloseTargetContainer(COOP_WINDOW).run(gui);
 
-            // Find coop with worse hen and replace it
+            // Find coop with worse female of same species and replace it
             for (CoopInfo coopInfo : coopInfos) {
-                for (int i = 0; i < coopInfo.henQualities.size(); i++) {
-                    if (coopInfo.henQualities.get(i) < henQuality) {
-                        hen = gui.getInventory().getItem(new NAlias("Hen"));
-                        if (hen == null) break;
+                for (int i = 0; i < coopInfo.femaleQualities.size(); i++) {
+                    if (coopInfo.femaleQualities.get(i) < femaleQuality) {
+                        female = getBirdItem(gui.getInventory(), species, BirdType.FEMALE);
+                        if (female == null) break;
 
                         // Navigate to chicken area and open coop for replacement
                         context.goToArea(Specialisation.SpecName.chicken);
@@ -561,44 +613,44 @@ public class KFC implements Action {
                         if (coopGob == null) continue;
                         
                         new PathFinder(coopGob).run(gui);
-                        if (!(new OpenTargetContainer("Chicken Coop", coopGob).run(gui).IsSuccess())) {
+                        if (!(new OpenTargetContainer(COOP_WINDOW, coopGob).run(gui).IsSuccess())) {
                             return Results.FAIL();
                         }
 
-                        // Get current hen in coop
-                        WItem oldHen = gui.getInventory("Chicken Coop").getItem(new NAlias("Hen"), coopInfo.henQualities.get(i));
-                        if (oldHen == null) {
-                            new CloseTargetContainer("Chicken Coop").run(gui);
+                        // Get current female in coop
+                        WItem oldFemale = getBirdItem(gui.getInventory(COOP_WINDOW), species, BirdType.FEMALE, coopInfo.femaleQualities.get(i));
+                        if (oldFemale == null) {
+                            new CloseTargetContainer(COOP_WINDOW).run(gui);
                             continue;
                         }
 
-                        // Replace hen
-                        pos = oldHen.c.div(Inventory.sqsz);
-                        oldHen.item.wdgmsg("transfer", Coord.z);
+                        // Replace female
+                        pos = oldFemale.c.div(Inventory.sqsz);
+                        oldFemale.item.wdgmsg("transfer", Coord.z);
                         Coord finalPos = pos;
                         NUtils.addTask(new NTask() {
                             @Override
                             public boolean check() {
-                                return gui.getInventory("Chicken Coop").isSlotFree(finalPos);
+                                return gui.getInventory(COOP_WINDOW).isSlotFree(finalPos);
                             }
                         });
 
-                        NUtils.takeItemToHand(hen);
-                        gui.getInventory("Chicken Coop").dropOn(pos, "Hen");
+                        NUtils.takeItemToHand(female);
+                        gui.getInventory(COOP_WINDOW).dropOn(pos);
 
                         // Update quality
-                        coopInfo.henQualities.set(i, henQuality);
-                        henQuality = ((NGItem) oldHen.item).quality;
-                        new CloseTargetContainer("Chicken Coop").run(gui);
+                        coopInfo.femaleQualities.set(i, femaleQuality);
+                        femaleQuality = itemQuality(oldFemale);
+                        new CloseTargetContainer(COOP_WINDOW).run(gui);
                         break;
                     }
                 }
             }
 
-            // Process the hen (butcher it)
-            hen = gui.getInventory().getItem(new NAlias("Hen"));
-            if (hen != null) {
-                butcherChicken(gui, hen, "Hen", "Dead Hen");
+            // Process the female (butcher it)
+            female = getBirdItem(gui.getInventory(), species, BirdType.FEMALE);
+            if (female != null) {
+                butcherBird(gui, female, species, BirdType.FEMALE);
             }
         }
         new FreeInventory2(context).run(gui);
@@ -606,46 +658,53 @@ public class KFC implements Action {
     }
     
     /**
-     * Butcher a chicken - wring neck, pluck, clean, butcher
-     * Similar to Butcher bot approach with FreeInventory2 and return to area
+     * Butcher a bird - wring neck, pluck, clean, butcher.
+     * Similar to Butcher bot approach with FreeInventory2 and return to area.
      */
-    private void butcherChicken(NGameUI gui, WItem chicken, String chickenType, String deadType) throws InterruptedException {
+    private void butcherBird(NGameUI gui, WItem bird, BirdSpecies species, BirdType liveType) throws InterruptedException {
         // Check inventory space before butchering
         if (gui.getInventory().getNumberFreeCoord(new Coord(1, 1)) < 2) {
             new FreeInventory2(context).run(gui);
         }
-        
-        new SelectFlowerAction("Wring neck", chicken).run(gui);
-        NUtils.addTask(new WaitItems((NInventory) gui.maininv, new NAlias(deadType), 1));
 
-        WItem deadChicken = gui.getInventory().getItem(new NAlias(deadType));
-        if (deadChicken == null) return;
+        BirdType deadType = liveType == BirdType.MALE ? BirdType.DEAD_MALE : BirdType.DEAD_FEMALE;
+        BirdType pluckedType = liveType == BirdType.MALE ? BirdType.PLUCKED_MALE : BirdType.PLUCKED_FEMALE;
+        
+        int deadCount = countBirdItems(gui.getInventory(), species, deadType);
+        new SelectFlowerAction("Wring neck", bird).run(gui);
+        waitForBirdItem(gui.getInventory(), species, deadType, deadCount + 1);
+
+        WItem deadBird = getBirdItem(gui.getInventory(), species, deadType);
+        if (deadBird == null) return;
 
         Boolean skipPluckCocks = (Boolean) NConfig.get(NConfig.Key.skipPluckingCocksInKFC);
-        boolean isCock = "Dead Cock".equals(deadType);
-        if (skipPluckCocks != null && skipPluckCocks && isCock) {
+        boolean isChickenCock = species == BirdSpecies.CHICKEN && liveType == BirdType.MALE;
+        if (skipPluckCocks != null && skipPluckCocks && isChickenCock) {
             // Leave as Dead Cock for creamy cock recipe
         } else {
-            new SelectFlowerAction("Pluck", deadChicken).run(gui);
-            NUtils.addTask(new WaitItems((NInventory) gui.maininv, new NAlias("Plucked Chicken"), 1));
+            int pluckedCount = countBirdItems(gui.getInventory(), species, pluckedType);
+            new SelectFlowerAction("Pluck", deadBird).run(gui);
+            waitForBirdItem(gui.getInventory(), species, pluckedType, pluckedCount + 1);
 
-            WItem plucked = gui.getInventory().getItem(new NAlias("Plucked Chicken"));
+            WItem plucked = getBirdItem(gui.getInventory(), species, pluckedType);
             if (plucked == null) return;
 
+            int cleanedCount = countBirdItems(gui.getInventory(), species, BirdType.CLEANED);
             new SelectFlowerAction("Clean", plucked).run(gui);
-            NUtils.addTask(new WaitItems((NInventory) gui.maininv, new NAlias("Cleaned Chicken"), 1));
+            waitForBirdItem(gui.getInventory(), species, BirdType.CLEANED, cleanedCount + 1);
 
-            WItem cleaned = gui.getInventory().getItem(new NAlias("Cleaned Chicken"));
+            WItem cleaned = getBirdItem(gui.getInventory(), species, BirdType.CLEANED);
             if (cleaned == null) return;
 
             Boolean skipButcher = (Boolean) NConfig.get(NConfig.Key.skipButcherInKFC);
             if (skipButcher == null || !skipButcher) {
+                int beforeButcher = countBirdItems(gui.getInventory(), species, BirdType.CLEANED);
                 new SelectFlowerAction("Butcher", cleaned).run(gui);
                 NUtils.addTask(new NTask() {
                     @Override
                     public boolean check() {
                         try {
-                            return gui.getInventory().getItems(new NAlias("Cleaned Chicken")).isEmpty();
+                            return countBirdItems(gui.getInventory(), species, BirdType.CLEANED) < beforeButcher;
                         } catch (InterruptedException e) {
                             return false;
                         }
@@ -654,24 +713,93 @@ public class KFC implements Action {
             }
         }
 
-        // Drop off if insufficient space for another chicken
+        // Drop off if insufficient space for another bird
         if (shouldDropOffItems(gui)) {
             new FreeInventory2(context).run(gui);
         }
     }
 
+    private NAlias babyAlias() {
+        return new NAlias(new ArrayList<>(List.of("Chick", "Duckling")), new ArrayList<>(List.of("Egg")));
+    }
+
+    private ArrayList<WItem> getBabyItems(NInventory inventory) throws InterruptedException {
+        ArrayList<WItem> babies = new ArrayList<>();
+        for (BirdSpecies species : BirdSpecies.values()) {
+            babies.addAll(getBirdItems(inventory, species, BirdType.BABY));
+        }
+        return babies;
+    }
+
+    private ArrayList<WItem> getBirdItems(NInventory inventory, BirdSpecies species, BirdType type) throws InterruptedException {
+        ArrayList<WItem> birds = new ArrayList<>();
+        for (WItem item : inventory.getItems()) {
+            if (isBirdItem(item, species, type)) {
+                birds.add(item);
+            }
+        }
+        return birds;
+    }
+
+    private WItem getBirdItem(NInventory inventory, BirdSpecies species, BirdType type) throws InterruptedException {
+        ArrayList<WItem> birds = getBirdItems(inventory, species, type);
+        return birds.isEmpty() ? null : birds.get(0);
+    }
+
+    private WItem getBirdItem(NInventory inventory, BirdSpecies species, BirdType type, double quality) throws InterruptedException {
+        for (WItem item : getBirdItems(inventory, species, type)) {
+            if (Double.compare(itemQuality(item), quality) == 0) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    private int countBirdItems(NInventory inventory, BirdSpecies species, BirdType type) throws InterruptedException {
+        return getBirdItems(inventory, species, type).size();
+    }
+
+    private void waitForBirdItem(NInventory inventory, BirdSpecies species, BirdType type, int minCount) throws InterruptedException {
+        NUtils.addTask(new NTask() {
+            @Override
+            public boolean check() {
+                try {
+                    return countBirdItems(inventory, species, type) >= minCount;
+                } catch (InterruptedException e) {
+                    return false;
+                }
+            }
+        });
+    }
+
+    private boolean isBirdItem(WItem item, BirdSpecies species, BirdType type) {
+        return isBirdResource(itemResource(item), species, type);
+    }
+
+    private String itemResource(WItem item) {
+        try {
+            NGItem ngItem = (NGItem) item.item;
+            return ngItem.res == null ? null : ngItem.res.get().name;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private float itemQuality(WItem item) {
+        Float quality = ((NGItem) item.item).quality;
+        return quality == null ? -1 : quality;
+    }
+
     /**
      * Checks if inventory drop-off is needed based on available space.
-     * Only drops off if insufficient space for another chicken + buffer.
+     * Only drops off if insufficient space for another bird + buffer.
      *
      * @param gui Game UI interface
      * @return true if drop-off needed, false if can continue batching
      */
     private boolean shouldDropOffItems(NGameUI gui) throws InterruptedException {
-            // Check available space for 1x1 items (Meat + Bone from chickens)
-            // Need space for: 1 more chicken (2 cells) + 4 buffer cells = 8 total cells
-            int availableSpaceForChicken = gui.getInventory().getNumberFreeCoord(new Coord(2, 2));
-            // Chicken is 2x2 (4 cells) plus 4 extra space for products.
-            return availableSpaceForChicken <= 2;
+        // Bird is 2x2 (4 cells) plus extra product buffer.
+        int availableSpaceForBird = gui.getInventory().getNumberFreeCoord(new Coord(2, 2));
+        return availableSpaceForBird <= 2;
     }
 }
