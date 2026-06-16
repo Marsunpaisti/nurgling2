@@ -279,6 +279,7 @@ public class KFC implements Action {
         }
 
         transferBabies(gui, coopHashes, incubatorHashes);
+        coopInfos = refreshCoopInfos(gui, coopHashes);
 
         if (coopHashes.isEmpty()) {
             return Results.ERROR("No chicken coops found!");
@@ -325,7 +326,48 @@ public class KFC implements Action {
         }
         return containers;
     }
-    
+
+    private EnumMap<BirdSpecies, ArrayList<CoopInfo>> refreshCoopInfos(NGameUI gui, ArrayList<String> coopHashes) throws InterruptedException {
+        EnumMap<BirdSpecies, ArrayList<CoopInfo>> coopInfos = new EnumMap<>(BirdSpecies.class);
+        for (BirdSpecies species : BirdSpecies.values()) {
+            coopInfos.put(species, new ArrayList<>());
+        }
+
+        context.goToArea(Specialisation.SpecName.chicken);
+        for (String hash : coopHashes) {
+            Gob gob = Finder.findGob(hash);
+            if (gob == null) continue;
+
+            new PathFinder(gob).run(gui);
+            if (!(new OpenTargetContainer(COOP_WINDOW, gob).run(gui).IsSuccess())) {
+                continue;
+            }
+
+            for (BirdSpecies species : BirdSpecies.values()) {
+                WItem male = getBirdItem(gui.getInventory(COOP_WINDOW), species, BirdType.MALE);
+                double maleQuality = male != null ? itemQuality(male) : -1;
+                CoopInfo coopInfo = new CoopInfo(hash, species, maleQuality);
+
+                ArrayList<WItem> females = getBirdItems(gui.getInventory(COOP_WINDOW), species, BirdType.FEMALE);
+                for (WItem female : females) {
+                    coopInfo.femaleQualities.add(itemQuality(female));
+                }
+                coopInfo.femaleQualities.sort(Float::compareTo);
+
+                if (maleQuality != -1 || !coopInfo.femaleQualities.isEmpty()) {
+                    coopInfos.get(species).add(coopInfo);
+                }
+            }
+
+            new CloseTargetContainer(COOP_WINDOW).run(gui);
+        }
+
+        for (BirdSpecies species : BirdSpecies.values()) {
+            coopInfos.get(species).sort(coopComparator.reversed());
+        }
+        return coopInfos;
+    }
+     
     private void transferBabies(NGameUI gui, ArrayList<String> coopHashes, ArrayList<String> incubatorHashes) throws InterruptedException {
         // Collect chicks and ducklings from chicken coops.
         context.goToArea(Specialisation.SpecName.chicken);
