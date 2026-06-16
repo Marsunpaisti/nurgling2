@@ -290,15 +290,13 @@ public class KFC implements Action {
             if (speciesCoops.isEmpty()) {
                 continue;
             }
-            OptionalDouble bestFemaleQuality = speciesCoops.stream()
-                    .filter(coop -> coop.maleQuality != -1)
-                    .flatMap(coop -> coop.femaleQualities.stream())
-                    .mapToDouble(Float::doubleValue)
-                    .max();
-            if (bestFemaleQuality.isEmpty()) {
+            Optional<CoopInfo> bestBreedingCoop = speciesCoops.stream()
+                    .filter(coop -> coop.maleQuality != -1 && !coop.femaleQualities.isEmpty())
+                    .findFirst();
+            if (bestBreedingCoop.isEmpty()) {
                 continue;
             }
-            eggThresholds.put(species, bestFemaleQuality.getAsDouble());
+            eggThresholds.put(species, (double) bestBreedingCoop.get().femaleQualities.get(0));
         }
 
         if (eggThresholds.isEmpty()) {
