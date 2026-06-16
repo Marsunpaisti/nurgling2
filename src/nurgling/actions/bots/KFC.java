@@ -291,12 +291,13 @@ public class KFC implements Action {
                 continue;
             }
             OptionalDouble bestFemaleQuality = speciesCoops.stream()
+                    .filter(coop -> coop.maleQuality != -1)
                     .flatMap(coop -> coop.femaleQualities.stream())
                     .mapToDouble(Float::doubleValue)
                     .max();
             if (bestFemaleQuality.isEmpty()) {
                 if (species == BirdSpecies.CHICKEN) {
-                    return Results.ERROR("No hens in chicken coops");
+                    return Results.ERROR("No breeding chicken coops found");
                 }
                 continue;
             }
