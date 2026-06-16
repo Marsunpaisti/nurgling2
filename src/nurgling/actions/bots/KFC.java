@@ -290,14 +290,17 @@ public class KFC implements Action {
             if (speciesCoops.isEmpty()) {
                 continue;
             }
-            CoopInfo bestCoop = speciesCoops.get(0);
-            if (bestCoop.femaleQualities.isEmpty()) {
+            OptionalDouble bestFemaleQuality = speciesCoops.stream()
+                    .flatMap(coop -> coop.femaleQualities.stream())
+                    .mapToDouble(Float::doubleValue)
+                    .max();
+            if (bestFemaleQuality.isEmpty()) {
                 if (species == BirdSpecies.CHICKEN) {
-                    return Results.ERROR("No hens in best coop");
+                    return Results.ERROR("No hens in chicken coops");
                 }
                 continue;
             }
-            eggThresholds.put(species, (double) bestCoop.femaleQualities.get(0));
+            eggThresholds.put(species, bestFemaleQuality.getAsDouble());
         }
 
         collectAndDisposeLowQualityEggs(gui, coopHashes, eggThresholds);
@@ -353,7 +356,6 @@ public class KFC implements Action {
     }
     
     private void transferBabiesToIncubators(NGameUI gui, ArrayList<String> incubatorHashes) throws InterruptedException {
-        NAlias babyAlias = babyAlias();
         ArrayList<WItem> babies = getBabyItems(gui.getInventory());
         if (babies.isEmpty()) return;
         
@@ -365,21 +367,15 @@ public class KFC implements Action {
             Gob gob = Finder.findGob(hash);
             if (gob == null) continue;
             
-            // ItemCount is alias-based, so use precise baby display names and exclude eggs.
-            Container incubatorContainer = new Container(gob, COOP_WINDOW, null);
-            Container.ItemCount itemCount = incubatorContainer.initItemCount(babyAlias, MAX_BABIES_PER_INCUBATOR);
-            
             new PathFinder(gob).run(gui);
-            if (!(new OpenTargetContainer(incubatorContainer).run(gui).IsSuccess())) {
+            if (!(new OpenTargetContainer(COOP_WINDOW, gob).run(gui).IsSuccess())) {
                 continue;
             }
             
-            // Update ItemCount to get current baby count
-            itemCount.update();
-            int canAdd = itemCount.getNeeded();
+            int canAdd = MAX_BABIES_PER_INCUBATOR - getBabyItems(gui.getInventory(COOP_WINDOW)).size();
             
             if (canAdd <= 0) {
-                new CloseTargetContainer(incubatorContainer).run(gui);
+                new CloseTargetContainer(COOP_WINDOW).run(gui);
                 continue;
             }
             
@@ -395,7 +391,7 @@ public class KFC implements Action {
                 }
             }
             
-            new CloseTargetContainer(incubatorContainer).run(gui);
+            new CloseTargetContainer(COOP_WINDOW).run(gui);
         }
     }
     
@@ -717,10 +713,6 @@ public class KFC implements Action {
         if (shouldDropOffItems(gui)) {
             new FreeInventory2(context).run(gui);
         }
-    }
-
-    private NAlias babyAlias() {
-        return new NAlias(new ArrayList<>(List.of("Chick", "Duckling")), new ArrayList<>(List.of("Egg")));
     }
 
     private ArrayList<WItem> getBabyItems(NInventory inventory) throws InterruptedException {
