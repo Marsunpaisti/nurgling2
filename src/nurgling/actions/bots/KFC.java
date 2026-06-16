@@ -296,12 +296,13 @@ public class KFC implements Action {
                     .mapToDouble(Float::doubleValue)
                     .max();
             if (bestFemaleQuality.isEmpty()) {
-                if (species == BirdSpecies.CHICKEN) {
-                    return Results.ERROR("No breeding chicken coops found");
-                }
                 continue;
             }
             eggThresholds.put(species, bestFemaleQuality.getAsDouble());
+        }
+
+        if (eggThresholds.isEmpty()) {
+            return Results.ERROR("No breeding coops found");
         }
 
         collectAndDisposeLowQualityEggs(gui, coopHashes, eggThresholds);
