@@ -296,7 +296,11 @@ public class KFC implements Action {
             if (bestBreedingCoop.isEmpty()) {
                 continue;
             }
-            eggThresholds.put(species, (double) bestBreedingCoop.get().femaleQualities.get(0));
+            double weakestBestCoopFemale = bestBreedingCoop.get().femaleQualities.stream()
+                    .mapToDouble(Float::doubleValue)
+                    .min()
+                    .orElseThrow();
+            eggThresholds.put(species, weakestBestCoopFemale);
         }
 
         if (eggThresholds.isEmpty()) {
