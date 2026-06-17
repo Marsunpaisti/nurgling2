@@ -31,8 +31,9 @@ public class NConfig
         minimapVilol, minimapClaimol, minimapRealmol,
         selectedWorld,
         showVarity,
-        autoFlower,
         autoSplitter,
+        showGilding,
+        showStackOverlay,
         autoDropper,
         is_real_time,
         baseurl,
@@ -114,7 +115,6 @@ public class NConfig
         uniformBiomeColors,
         inventoryRightPanelShow,
         inventoryRightPanelMode,
-        tableBaseAttrsShow,
         showTerrainName,
         validateAllCropsBeforeHarvest,
         skipButcherInKFC,
@@ -122,6 +122,8 @@ public class NConfig
         studyDeskLayout,
         waypointRetryOnStuck,
         verboseCal,
+        pluginsAllowUnsigned,  // Dev only: load external plugin jars without signature verification
+        pluginsDir,            // Optional override for the plugin drop-folder (default: "plugins")
         highlightRockTiles,
         preferredMovementSpeed,
         preferredHorseSpeed,
@@ -239,9 +241,11 @@ public class NConfig
         conf.put(Key.minimapRealmol, false);
         conf.put(Key.selectedWorld, null);
         conf.put(Key.showVarity, false);
-        conf.put(Key.autoFlower, false);
         conf.put(Key.autoSplitter, false);
+        conf.put(Key.showGilding, false);
+        conf.put(Key.showStackOverlay, true);
         conf.put(Key.autoDropper, false);
+        conf.put(Key.dropConf, new JSONArray());
         conf.put(Key.is_real_time, true);
         conf.put(Key.numbelts, 3);
         conf.put(Key.showCropStage, false);
@@ -255,6 +259,7 @@ public class NConfig
         conf.put(Key.showCSprite, true);
         conf.put(Key.hideNature, false);
         conf.put(Key.hideEarthworm, true);  // true = show earthworms (checkbox unchecked by default)
+        conf.put(Key.pluginsAllowUnsigned, false);  // default: only load signed plugins
         conf.put(Key.invert_hor, false);
         conf.put(Key.invert_ver, false);
         conf.put(Key.show_drag_menu, true);
@@ -329,7 +334,6 @@ public class NConfig
         conf.put(Key.uniformBiomeColors, false);
         conf.put(Key.inventoryRightPanelShow, false);
         conf.put(Key.inventoryRightPanelMode, "EXPANDED");
-        conf.put(Key.tableBaseAttrsShow, false);
         conf.put(Key.showTerrainName, false);
         conf.put(Key.validateAllCropsBeforeHarvest, false);
         conf.put(Key.studyDeskLayout, "");
@@ -419,6 +423,8 @@ public class NConfig
         arearadprop.add(new NAreaRad("gfx/kritter/cavelouse/cavelouse", 200));
         arearadprop.add(new NAreaRad("gfx/kritter/boreworm/boreworm", 200));
         arearadprop.add(new NAreaRad("gfx/kritter/woodscorpion/woodscorpion", 50));
+        arearadprop.add(new NAreaRad("gfx/kritter/rat/caverat", 100));
+        arearadprop.add(new NAreaRad("gfx/kritter/ooze/greenooze", 100));
         conf.put(Key.animalrad, arearadprop);
 
         // Movement speed setting (0=Crawl, 1=Walk, 2=Run, 3=Sprint)
@@ -563,9 +569,6 @@ public class NConfig
 
     HashMap<Key, Object> conf = new HashMap<>();
     private boolean isUpd = false;
-    private boolean isAreasUpd = false;
-    private long lastAreasChangeTime = 0;
-    private static final long AREAS_DEBOUNCE_MS = 3000; // 3 seconds debounce for area changes
     private boolean isExploredUpd = false;
     private long lastExploredChangeTime = 0;
     private static final long EXPLORED_DEBOUNCE_MS = 5000; // 5 seconds debounce for explored area changes
@@ -576,17 +579,6 @@ public class NConfig
     public boolean isUpdated()
     {
         return isUpd;
-    }
-
-    public boolean isAreasUpdated()
-    {
-        // Only return true if areas changed AND debounce period has passed
-        // This batches multiple rapid changes into a single DB update
-        if (isAreasUpd && lastAreasChangeTime > 0) {
-            long elapsed = System.currentTimeMillis() - lastAreasChangeTime;
-            return elapsed >= AREAS_DEBOUNCE_MS;
-        }
-        return false;
     }
 
     public boolean isRoutesUpdated() {
@@ -633,8 +625,9 @@ public class NConfig
         NConfig cfg = resolveConfig();
         if (cfg == null)
             return null;
-        else
+        synchronized (cfg.conf) {
             return cfg.conf.get(key);
+        }
     }
 
     /**
@@ -643,28 +636,39 @@ public class NConfig
      * regardless of which thread (tick vs mouse event) is calling.
      */
     public static Object getGlobal(Key key) {
-        if (current == null) return null;
-        return current.conf.get(key);
+        NConfig cur = current;
+        if (cur == null) return null;
+        synchronized (cur.conf) {
+            return cur.conf.get(key);
+        }
     }
 
     public static void set(Key key, Object val)
     {
         // Set on global config
-        if (current != null)
+        NConfig cur = current;
+        if (cur != null)
         {
-            current.conf.put(key, val);
-            current.isUpd = true;
+            synchronized (cur.conf) {
+                cur.conf.put(key, val);
+            }
+            cur.isUpd = true;
         }
         // Propagate to all session configs so every session sees the same value
         for (SessionContext ctx : SessionManager.getInstance().getAllSessions())
         {
             if (ctx.config != null)
             {
-                ctx.config.conf.put(key, val);
+                synchronized (ctx.config.conf) {
+                    ctx.config.conf.put(key, val);
+                }
             }
-            if (ctx.ui != null && ctx.ui.sessionConfig != null)
+            NConfig sc = (ctx.ui != null) ? ctx.ui.sessionConfig : null;
+            if (sc != null)
             {
-                ctx.ui.sessionConfig.conf.put(key, val);
+                synchronized (sc.conf) {
+                    sc.conf.put(key, val);
+                }
             }
         }
     }
@@ -680,21 +684,17 @@ public class NConfig
 
     public static void needAreasUpdate()
     {
-        // Only update profile-specific config (areas are per-world)
-        // Record timestamp for debouncing - actual save happens after AREAS_DEBOUNCE_MS of inactivity
-        long now = System.currentTimeMillis();
+        // Mark the EDITING session's own areas map as dirty. The flag lives on
+        // the per-session MCache (glob.map), not on the genus-shared NConfig, so
+        // that same-world sessions in one client don't clear each other's save
+        // trigger and strand edits before they reach the DB.
         try {
-            if (nurgling.NUtils.getGameUI() != null && nurgling.NUtils.getUI() != null && nurgling.NUtils.getUI().core != null) {
-                nurgling.NUtils.getUI().core.config.isAreasUpd = true;
-                nurgling.NUtils.getUI().core.config.lastAreasChangeTime = now;
+            if (nurgling.NUtils.getGameUI() != null && nurgling.NUtils.getGameUI().map != null) {
+                haven.MCache mc = ((nurgling.NMapView) nurgling.NUtils.getGameUI().map).glob.map;
+                if (mc != null) mc.markAreasDirty();
             }
         } catch (Exception e) {
-            // Fallback to global config if profile config not available
-            if (current != null)
-            {
-                current.isAreasUpd = true;
-                current.lastAreasChangeTime = now;
-            }
+            // No session UI available - nothing to mark.
         }
         // Notify sync layer that the local user is actively editing so it can
         // bias pull cadence / surface presence info (Phase 5).
@@ -775,7 +775,7 @@ public class NConfig
         return result;
     }
 
-    public static NConfig current;
+    public static volatile NConfig current;
 
     // Profile management - World-specific configurations
     private static final Map<String, NConfig> profileInstances = new HashMap<>();
@@ -1077,7 +1077,12 @@ public class NConfig
 
     @SuppressWarnings("unchecked")
     public void read() {
-        current = this;
+        // NOTE: do NOT publish `current = this` here. Publishing a half-built
+        // instance (constructor defaults only, before the file is parsed) opened
+        // a race: a concurrent NConfig.set() from another thread would mark this
+        // defaults-only instance dirty and the tick-thread write() would flush it
+        // to disk, erasing keys that hadn't been loaded yet (e.g. dropConf). We
+        // now publish `current` only once `conf` is fully populated (see below).
         String content = NFileUtils.readWithBackupFallback(path);
 
         if (content != null && !content.isEmpty())
@@ -1087,6 +1092,7 @@ public class NConfig
                 main = new JSONObject(content);
             } catch (org.json.JSONException e) {
                 System.err.println("[NConfig] Failed to parse config file (corrupt JSON), using defaults: " + path);
+                current = this;
                 return;
             }
             Map<String, Object> map = main.toMap();
@@ -1180,6 +1186,8 @@ public class NConfig
             String[][] newAnimals = {
                 {"gfx/kritter/bear/polarbear", "100"},
                 {"gfx/kritter/woodscorpion/woodscorpion", "50"},
+                {"gfx/kritter/rat/caverat", "100"},
+                {"gfx/kritter/ooze/greenooze", "100"},
             };
             for (String[] entry : newAnimals) {
                 if (!existingNames.contains(entry[0])) {
@@ -1191,6 +1199,10 @@ public class NConfig
 
         conf.put(Key.showCSprite,conf.get(Key.nextshowCSprite));
         conf.put(Key.flatsurface,conf.get(Key.nextflatsurface));
+
+        // Publish only now that conf is fully populated, so no other thread can
+        // observe (and flush) a partially-loaded config as the global current.
+        current = this;
     }
 
     @SuppressWarnings("unchecked")
@@ -1225,8 +1237,14 @@ public class NConfig
     @SuppressWarnings("unchecked")
     public void write()
     {
+        // Snapshot under lock so we never iterate the map while another thread
+        // mutates it via set(); serialization/IO then happens off the lock.
+        Map<Key, Object> snapshot;
+        synchronized (conf) {
+            snapshot = new HashMap<>(conf);
+        }
         Map<String, Object> prep = new HashMap<>();
-        for (Map.Entry<Key, Object> entry : conf.entrySet())
+        for (Map.Entry<Key, Object> entry : snapshot.entrySet())
         {
             if (entry.getValue() instanceof JConf)
             {
@@ -1278,21 +1296,23 @@ public class NConfig
                 return;
             }
 
+            // Area-save dirty state lives on the per-session MCache, not on this
+            // (genus-shared) NConfig - so same-world sessions don't clobber each
+            // other's save trigger.
+            final haven.MCache mcache = ((NMapView)NUtils.getGameUI().map).glob.map;
+
             // If DB is enabled - ONLY use DB, never fallback to file
             if ((Boolean) NConfig.get(NConfig.Key.ndbenable)) {
-                // Reset flags to prevent repeated calls (use 'this' not 'current' - they may be different instances)
-                this.isAreasUpd = false;
-                this.lastAreasChangeTime = 0;
-                
+                // Clear optimistically to prevent repeated calls; re-armed on failure.
+                mcache.clearAreasDirty();
+
                 if (NCore.databaseManager != null && NCore.databaseManager.isReady()) {
                     try {
                         String profile = NUtils.getGameUI().getGenus();
                         if (profile == null || profile.isEmpty()) {
                             profile = "global";
                         }
-                        java.util.Map<Integer, NArea> areas = ((NMapView)NUtils.getGameUI().map).glob.map.areas;
-                        // Capture 'this' for use in async callback
-                        final NConfig self = this;
+                        java.util.Map<Integer, NArea> areas = mcache.areas;
                         NCore.databaseManager.getAreaService().exportAreasToDatabaseAsync(areas, profile)
                             .thenAccept(count -> {
                                 // Silent save - no spam
@@ -1302,15 +1322,13 @@ public class NConfig
                                 if (e.getCause() != null) {
                                     e.getCause().printStackTrace();
                                 }
-                                // Set flag back to retry later (with timestamp for debounce)
-                                self.isAreasUpd = true;
-                                self.lastAreasChangeTime = System.currentTimeMillis();
+                                // Re-arm so the save retries on a later tick.
+                                mcache.markAreasDirty();
                                 return null;
                             });
                     } catch (Exception e) {
                         System.err.println("Failed to save areas to database: " + e.getMessage());
-                        this.isAreasUpd = true;
-                        this.lastAreasChangeTime = System.currentTimeMillis();
+                        mcache.markAreasDirty();
                     }
                 }
                 // DB enabled but not ready - just skip, will retry on next tick
@@ -1318,7 +1336,13 @@ public class NConfig
             }
 
             // DB not enabled - write to file
-            writeAreasToFile(getAreasPath());
+            String areasPath = getAreasPath();
+            writeAreasToFile(areasPath);
+            mcache.clearAreasDirty();
+            // Record the mtime we just wrote so our own write isn't mistaken for
+            // another session's edit on the next reload check.
+            try { mcache.areasFileMtime = new java.io.File(areasPath).lastModified(); }
+            catch (Exception e) { /* leave mtime as-is */ }
         }
     }
 
@@ -1333,8 +1357,6 @@ public class NConfig
         try
         {
             NFileUtils.writeAtomically(path, main.toString());
-            this.isAreasUpd = false;
-            this.lastAreasChangeTime = 0;
         }
         catch (IOException e)
         {

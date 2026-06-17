@@ -156,7 +156,7 @@ public class NMapView extends MapView
     public NMarkerLineOverlay markerLineOverlay = null;
     private RenderTree.Slot markerLineSlot = null;
 
-    public static boolean hitNWidgetsInfo(Coord pc) {
+    public static boolean hitNWidgetsInfo(Coord pc, int button) {
         boolean isFound = false;
         NMapView mapView = (NMapView)NUtils.getGameUI().map;
         synchronized (mapView.dummys) {
@@ -180,6 +180,11 @@ public class NMapView extends MapView
                                     NUtils.getGameUI().areas.al.sel = ai;
                                     NUtils.getGameUI().areas.al.display(ai);
                                     NUtils.getGameUI().areas.select(area.id);
+                                    // Right-click on the world label opens the same
+                                    // context menu as right-clicking the list row.
+                                    if(button == 3) {
+                                        ai.optsAt(NUtils.getUI().mc);
+                                    }
                                     break;
                                 }
                             }
@@ -336,13 +341,61 @@ public class NMapView extends MapView
         }
     }
 
+    private long lastAreasReloadCheck = 0;
+
+    /**
+     * File mode only: if another in-process session wrote area edits to the
+     * shared per-genus areas file, reload this session's in-memory map + labels
+     * so the change propagates. No-op in DB mode (the sync worker handles that)
+     * and throttled to once per second. Called from NCore.tick per session.
+     */
+    public void reloadAreasFromFileIfChanged()
+    {
+        if ((Boolean) NConfig.get(NConfig.Key.ndbenable)) return;
+
+        long now = System.currentTimeMillis();
+        if (now - lastAreasReloadCheck < 1000) return;
+        lastAreasReloadCheck = now;
+
+        String path = glob.map.getAreasPath();
+        if (path == null) return;
+        long mtime;
+        try { mtime = new java.io.File(path).lastModified(); }
+        catch (Exception e) { return; }
+        if (mtime == glob.map.areasFileMtime) return; // unchanged since our last load/save
+
+        // Another session changed the shared file - rebuild our map and labels.
+        synchronized (glob.map.areas) {
+            destroyDummys();
+            glob.map.areas.clear();
+            glob.map.areasLoaded = false;
+            glob.map.loadAreasIfNeeded();
+            initDummys();
+        }
+        glob.map.areasFileMtime = mtime;
+
+        // Refresh region overlays + the areas widget (mirrors DatabaseSettings.refreshAreasUI).
+        if (nols != null) {
+            for (NOverlay o : nols.values()) {
+                if (o != null) o.requpdate2 = true;
+            }
+        }
+        try {
+            if (NUtils.getGameUI() != null && NUtils.getGameUI().areas != null
+                && NUtils.getGameUI().areas.al != null) {
+                NUtils.getGameUI().areas.showPath(NUtils.getGameUI().areas.currentPath);
+            }
+        } catch (Exception ignore) {}
+        System.out.println("Areas reloaded from file (changed by another session)");
+    }
+
     public void initRouteDummys(int id) {
         destroyRouteDummys();
     }
 
     public void createAreaLabel(Integer id) {
         NArea area = glob.map.areas.get(id);
-        Pair<Coord2d,Coord2d> space = area.getRCArea();
+        Pair<Coord2d,Coord2d> space = area.getRCArea(false);
 
         if(space!=null)
         {
@@ -2131,6 +2184,8 @@ public class NMapView extends MapView
 
         public NPlob(Indir<Resource> res, Message sdt) {
             super(res, sdt);
+            // Ctrl-held object-to-object snapping (falls back to grid without Ctrl).
+            this.adjust = new NStdPlace();
             // Add bounding box support for temporal objects
             addPlobBoundingBox(res, sdt);
         }
@@ -2154,6 +2209,13 @@ public class NMapView extends MapView
                 }
             }
         }
+    }
+
+    /** Ensure the local-placement path (e.g. MMB clone-pick) also gets an NPlob
+     *  (with snapping + bounding box) rather than a plain haven Plob. */
+    @Override
+    public Plob createPlob(Indir<Resource> res, Message sdt) {
+        return(new NPlob(res, sdt));
     }
 
     // Override uimsg to use NPlob instead of Plob

@@ -1828,9 +1828,13 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    initload = now;
 	}
 	if((terrain.loading() == null) && (gobs.loading() == null) && initdraw) {
-	    wdgmsg("initload", now - initload);
+	    initload(now - initload);
 	    initload = -1;
 	}
+    }
+
+    protected void initload(double time) {
+	wdgmsg("initload", time);
     }
 
     public void tick(double dt) {
@@ -2164,7 +2168,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 	
 	protected void hit(Coord pc, Coord2d mc, ClickData inf) {
-		if(NMapView.hitNWidgetsInfo(pc))
+		if(NMapView.hitNWidgetsInfo(pc, clickb))
 			return;
 		if(NMapView.isRecordingRoutePoint) {
 			return;
@@ -2622,7 +2626,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		}
 
 		@Override
-		public boolean wheel (MouseWheelEvent ev) {
+		public boolean wheel(MouseWheelEvent ev) {
 			chfield ( super.tfield + (float)ev.s * 10 );
 			return ( true );
 		}

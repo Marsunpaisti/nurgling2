@@ -226,6 +226,9 @@ public class UnifiedTilePathfinder {
         // long searchStartTime = System.currentTimeMillis();
 
         while (!openSet.isEmpty() && iterations < maxIterations) {
+            if (Thread.currentThread().isInterrupted()) {
+                return null;
+            }
             iterations++;
 
             AStarNode current = openSet.poll();
@@ -272,10 +275,7 @@ public class UnifiedTilePathfinder {
         }
 
         // Path not found
-        // System.out.println("[UnifiedTilePathfinder] NO PATH FOUND! Iterations: " + iterations + ", chunks explored: " + chunksExplored.size());
-        // if (openSet.isEmpty()) {
-        //     System.out.println("[UnifiedTilePathfinder] Search exhausted - no connection to target");
-        // }
+        // Path not found
 
         return null;
     }

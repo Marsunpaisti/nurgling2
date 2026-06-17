@@ -36,6 +36,7 @@ import java.util.function.*;
 import java.io.*;
 import java.nio.file.*;
 import java.awt.image.*;
+import haven.iosys.tk.*;
 import java.awt.Color;
 import java.util.regex.Pattern;
 import javax.swing.JFileChooser;
@@ -938,20 +939,18 @@ public class GobIcon extends GAttrib {
 		protected Widget makeitem(NotificationSetting item, int idx, Coord sz) {return(SListWidget.TextItem.of(sz, Text.std, () -> item.name));}
 
 		private void selectwav() {
-		    java.awt.EventQueue.invokeLater(() -> {
-			    JFileChooser fc = new JFileChooser();
-			    fc.setFileFilter(new FileNameExtensionFilter("PCM wave file", "wav"));
-			    if(fc.showOpenDialog(null) != JFileChooser.APPROVE_OPTION)
-				return;
-			    for(Iterator<NotificationSetting> i = items.iterator(); i.hasNext();) {
-				NotificationSetting item = i.next();
-				if(item.wav != null)
-				    i.remove();
-			    }
-			    NotificationSetting ws = new NotificationSetting(fc.getSelectedFile().toPath());
-			    items.add(items.indexOf(NotificationSetting.other), ws);
-			    change(ws);
-			});
+		    FilePicker dialog = ui.wnd.toolkit().picker().make(FilePicker.Mode.OPEN, ui.wnd);
+		    dialog.filter("PCM wave file", "wav");
+		    dialog.show().map(Promise.cnonnull(path -> {
+			for(Iterator<NotificationSetting> i = items.iterator(); i.hasNext();) {
+			    NotificationSetting item = i.next();
+			    if(item.wav != null)
+				i.remove();
+			}
+			NotificationSetting ws = new NotificationSetting(path);
+			items.add(items.indexOf(NotificationSetting.other), ws);
+			change(ws);
+		    })).report(ui);
 		}
 
 		public void change(NotificationSetting item) {
@@ -985,7 +984,7 @@ public class GobIcon extends GAttrib {
 			patterns.put("Herbs",Pattern.compile("gfx/invobjs/herbs/.*"));
 			patterns.put("Bushes",Pattern.compile("gfx/terobjs/mm/bushes/.*"));
 			patterns.put("Trees",Pattern.compile("gfx/terobjs/mm/trees/.*"));
-			patterns.put("Bumblings",Pattern.compile("(gfx/invobjs/.*).*(ore|mineral|arkose|mica|diorite|gneiss|microlite|obsidian|sodalite|olivine|rock|metal|flint|coal|galena|ilmenite|argentite|leadglance|graywacke|cuprite|limonite|diabase|pegmatite|pumice|cassiterite|sylvanite|corund|zincspar|orthoclase|hornsilver|eclogite|gabbro|malachite|granite|dolomite|schist|quartz|calcite|cinnabar|serpentine|basalt|tremolite|rhyolite|feldspar|soapstone|bauxite|chert|pyrite|hematite|alabaster|apatite|fluorite|jasper|scoria|agates|tuff|zeolite|hornblende|magnetite|pyrophyllite|bentonite|marble|muscovite|phyllite|taconite|wollastonite|talc|siltstone|slate|diatomite|tufa|limestone)"));
+			patterns.put("Bumblings",Pattern.compile("(gfx/invobjs/.*).*(ore|mineral|arkose|mica|diorite|gneiss|microlite|obsidian|sodalite|olivine|rock|metal|flint|coal|galena|ilmenite|argentite|leadglance|graywacke|cuprite|limonite|diabase|pegmatite|pumice|cassiterite|sylvanite|corund|zincspar|orthoclase|hornsilver|eclogite|gabbro|malachite|granite|dolomite|schist|quartz|calcite|cinnabar|serpentine|basalt|tremolite|rhyolite|feldspar|soapstone|bauxite|chert|pyrite|hematite|alabaster|apatite|fluorite|jasper|scoria|agates|tuff|zeolite|hornblende|magnetite|pyrophyllite|bentonite|marble|muscovite|phyllite|taconite|wollastonite|talc|siltstone|slate|diatomite|tufa|limestone|sandstone)"));
 			patterns.put("Players",Pattern.compile("gfx/hud/mmap/plo"));
 			patterns.put("Display",null);
 			patterns.put("Notify",null);

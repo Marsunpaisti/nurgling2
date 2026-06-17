@@ -22,3 +22,4 @@ __pycache__/
 !/.artifacts/resource-dumps/
 /.artifacts/resource-dumps/*
 !/.artifacts/resource-dumps/.gitkeep
+/plugins/

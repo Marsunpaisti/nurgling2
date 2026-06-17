@@ -215,6 +215,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("unbox_zone", BotDescriptor.BotType.UTILS, "Free Containers in Unbox Zone", "Automatically navigates to unbox zone and frees containers.", true, true, FreeContainersInUnboxZone.class, "unbox_zone", BotDescriptor.StackMode.ENABLED));
         bots.add(new BotDescriptor("sort_containers", BotDescriptor.BotType.UTILS, "Sort Containers in Area", "Sorts all items across containers in a selected area.", false, true, SortContainersInArea.class, "sort_containers", false));
         bots.add(new BotDescriptor("water_cheker", BotDescriptor.BotType.UTILS, "Check Water", "Checks water.", false, true, CheckWater.class, "water_cheker", false));
+        bots.add(new BotDescriptor("pave_areas", BotDescriptor.BotType.UTILS, "Pave Areas", "Paves every area with the Paving specialisation, fetching its configured stone from that stone's Take area.", false, true, PaveAreas.class, "paver", false));
         bots.add(new BotDescriptor("clay_cheker", BotDescriptor.BotType.UTILS, "Check Clay", "Checks clay.", false, true, CheckClay.class, "clay_cheker", true));
         bots.add(new BotDescriptor("clover", BotDescriptor.BotType.UTILS, "Feed Clover", "Feeds clover.", false, true, FeedClover.class, "clover", false));
         bots.add(new BotDescriptor("collectalltopile", BotDescriptor.BotType.UTILS, "Collect To Pile", "Collects same items from earth.", false, true, CollectSameItemsFromEarth.class, "collectalltopile", false));

@@ -169,7 +169,7 @@ public class AreaNavigationHelper {
 
         return bestPath;
     }
-    
+
     /**
      * Check if any corner of the area is reachable via local pathfinding.
      * 
@@ -218,11 +218,18 @@ public class AreaNavigationHelper {
             threads[i].start();
         }
         
-        // Wait for all threads
-        for (Thread t : threads) {
-            t.join();
+        // Wait for all threads — interrupt them if we get interrupted
+        try {
+            for (Thread t : threads) {
+                t.join();
+            }
+        } catch (InterruptedException e) {
+            for (Thread t : threads) {
+                t.interrupt();
+            }
+            throw e;
         }
-        
+
         // Check if any corner is reachable
         for (boolean r : reachable) {
             if (r) return true;
@@ -283,9 +290,16 @@ public class AreaNavigationHelper {
             threads[i].start();
         }
 
-        // Wait for all threads
-        for (Thread t : threads) {
-            t.join();
+        // Wait for all threads — interrupt them if we get interrupted
+        try {
+            for (Thread t : threads) {
+                t.join();
+            }
+        } catch (InterruptedException e) {
+            for (Thread t : threads) {
+                t.interrupt();
+            }
+            throw e;
         }
 
         // Find the corner with shortest actual path
