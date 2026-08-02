@@ -9,7 +9,7 @@ import haven.res.ui.tt.stackn.StackName;
 import monitoring.ItemWatcher;
 import nurgling.iteminfo.NCuriosity;
 import nurgling.iteminfo.NFoodInfo;
-import nurgling.tools.VSpec;
+import nurgling.tools.LpExplorer;
 import nurgling.widgets.NQuestInfo;
 
 import java.util.ArrayList;
@@ -23,6 +23,7 @@ public class NGItem extends GItem
     int lastQuestUpdate = 0;
     String name = null;
     public Float quality = null;
+    public boolean autodropRequested = false; // guards against re-sending autodrop for a stacked item already being dropped
     public long meterUpdated = 0;
     public int hardArmor = 0;
     public int softArmor = 0;
@@ -32,6 +33,7 @@ public class NGItem extends GItem
     boolean addedToInventoryCache = false; // Track if item was added to container cache for DB sync
     boolean isStackContainer = false; // True if this item is a stack container (holds other items)
     ItemWatcher.ItemInfo cachedItemInfo = null; // Reference to ItemInfo in cache for removal
+
     public NGItem(Indir<Resource> res, Message sdt)
     {
         super(res, sdt);
@@ -153,15 +155,11 @@ public class NGItem extends GItem
             }
             if(name!=null)
             {
-                if(NUtils.getGameUI().map.clickedGob!=null)
-                {
-                    // Exclude tools from LPExplorer tracking
-                    if(!name.contains(" Axe") && !name.contains(" Saw"))
-                    {
-                        VSpec.checkLpExplorer(NUtils.getGameUI().map.clickedGob.gob, name);
-                    }
-                }
-                
+                // Looks up which resource tracks this name directly from VSpec.object - no gob
+                // reference needed at all, since discovery is tracked per resource, not per the
+                // specific gob instance that happened to produce it. See its own diagnostic
+                // logging for unrecognized names/tool exclusions.
+                LpExplorer.checkLpExplorer(name);
             }
 
         }

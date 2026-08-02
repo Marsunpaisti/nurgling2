@@ -6,7 +6,8 @@ import nurgling.NMapView;
 import nurgling.NUtils;
 import nurgling.i18n.L10n;
 import nurgling.overlays.NLPassistant;
-import nurgling.overlays.NTreeHarvestOl;
+import nurgling.overlays.NObjHarvestOl;
+import nurgling.tools.HarvestSpecs;
 import nurgling.widgets.nsettings.Panel;
 
 public class QoL extends Panel {
@@ -55,6 +56,10 @@ public class QoL extends Panel {
     private CheckBox treeHarvestLeaves;
     private CheckBox treeHarvestBoughs;
     private CheckBox treeHarvestBark;
+    private CheckBox bushHarvestOverlay;
+    private CheckBox logHarvestOverlay;
+    private CheckBox stoneHarvestOverlay;
+    private CheckBox oldtrunkHarvestOverlay;
     private CheckBox syncCamera;
     private CheckBox invGilding;
     private CheckBox invVarOverlay;
@@ -64,6 +69,8 @@ public class QoL extends Panel {
     private TextEntry treeScaleMinThresholdEntry;
     private HSlider treeDisplayScaleSlider;
     private Label treeDisplayScaleLabel;
+    private HSlider hideStockpileScaleSlider;
+    private Label hideStockpileScaleLabel;
 
     private Dropbox<String> preferredSpeedDropbox;
     private Dropbox<String> preferredHorseSpeedDropbox;
@@ -144,8 +151,19 @@ public class QoL extends Panel {
         leftPrev = shortWalls = leftColumn.add(new CheckBox(L10n.get("qol.short_walls")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = decalsOnTop = leftColumn.add(new CheckBox(L10n.get("qol.decals_on_top")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = thinOutlines = leftColumn.add(new CheckBox(L10n.get("qol.thin_outlines")), leftPrev.pos("bl").adds(0, 5));
+        leftPrev = leftColumn.add(new Label(L10n.get("qol.hide_stockpile_scale")), leftPrev.pos("bl").adds(10, 3));
+        {
+            hideStockpileScaleLabel = new Label("50%");
+            hideStockpileScaleSlider = new HSlider(UI.scale(150), 25, 100, 50) {
+                public void changed() {
+                    hideStockpileScaleLabel.settext(String.format("%d%%", this.val));
+                }
+            };
+            leftColumn.addhlp(leftPrev.pos("bl").adds(0, 2), UI.scale(5), hideStockpileScaleSlider, hideStockpileScaleLabel);
+            leftPrev = hideStockpileScaleSlider;
+        }
 
-        leftPrev = leftColumn.add(new Label("● " + L10n.get("qol.section.tree_growth")), leftPrev.pos("bl").adds(0, 15));
+        leftPrev = leftColumn.add(new Label("● " + L10n.get("qol.section.tree_growth")), leftPrev.pos("bl").adds(-10, 15));
         leftPrev = treeScaleDisableZoomHide = leftColumn.add(new CheckBox(L10n.get("qol.tree_always_show")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = leftColumn.add(new Label(L10n.get("qol.tree_min_threshold")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = treeScaleMinThresholdEntry = leftColumn.add(new TextEntry.NumberValue(50, "0"), leftPrev.pos("bl").adds(0, 5));
@@ -154,6 +172,10 @@ public class QoL extends Panel {
         leftPrev = treeHarvestLeaves = leftColumn.add(new CheckBox(L10n.get("qol.tree_harvest_leaves")), leftPrev.pos("bl").adds(0, 3));
         leftPrev = treeHarvestBoughs = leftColumn.add(new CheckBox(L10n.get("qol.tree_harvest_boughs")), leftPrev.pos("bl").adds(0, 3));
         leftPrev = treeHarvestBark = leftColumn.add(new CheckBox(L10n.get("qol.tree_harvest_bark")), leftPrev.pos("bl").adds(0, 3));
+        leftPrev = bushHarvestOverlay = leftColumn.add(new CheckBox(L10n.get("qol.bush_harvest_overlay")), leftPrev.pos("bl").adds(-10, 8));
+        leftPrev = logHarvestOverlay = leftColumn.add(new CheckBox(L10n.get("qol.log_harvest_overlay")), leftPrev.pos("bl").adds(0, 3));
+        leftPrev = stoneHarvestOverlay = leftColumn.add(new CheckBox(L10n.get("qol.stone_harvest_overlay")), leftPrev.pos("bl").adds(0, 3));
+        leftPrev = oldtrunkHarvestOverlay = leftColumn.add(new CheckBox(L10n.get("qol.oldtrunk_harvest_overlay")), leftPrev.pos("bl").adds(0, 3));
         leftPrev = leftColumn.add(new Label(L10n.get("qol.tree_display_scale")), leftPrev.pos("bl").adds(-10, 8));
         {
             treeDisplayScaleLabel = new Label("100%");
@@ -387,6 +409,10 @@ public class QoL extends Panel {
         treeHarvestLeaves.a = getBool(NConfig.Key.treeHarvestLeaves);
         treeHarvestBoughs.a = getBool(NConfig.Key.treeHarvestBoughs);
         treeHarvestBark.a = getBool(NConfig.Key.treeHarvestBark);
+        bushHarvestOverlay.a = getBool(NConfig.Key.bushHarvestOverlay);
+        logHarvestOverlay.a = getBool(NConfig.Key.logHarvestOverlay);
+        stoneHarvestOverlay.a = getBool(NConfig.Key.stoneHarvestOverlay);
+        oldtrunkHarvestOverlay.a = getBool(NConfig.Key.oldtrunkHarvestOverlay);
         syncCamera.a = getBool(NConfig.Key.sync_camera);
 
         invGilding.a = getBool(NConfig.Key.showGilding);
@@ -402,6 +428,14 @@ public class QoL extends Panel {
         }
         treeDisplayScaleSlider.val = treeScaleValue;
         treeDisplayScaleLabel.settext(String.format("%d%%", treeScaleValue));
+
+        Object hideStockpilePref = NConfig.get(NConfig.Key.hideStockpileScale);
+        int hideStockpileValue = 50;
+        if (hideStockpilePref instanceof Number) {
+            hideStockpileValue = ((Number) hideStockpilePref).intValue();
+        }
+        hideStockpileScaleSlider.val = hideStockpileValue;
+        hideStockpileScaleLabel.settext(String.format("%d%%", hideStockpileValue));
 
         Object minThreshold = NConfig.get(NConfig.Key.treeScaleMinThreshold);
         treeScaleMinThresholdEntry.settext(minThreshold == null ? "0" : minThreshold.toString());
@@ -592,26 +626,38 @@ public class QoL extends Panel {
         NConfig.set(NConfig.Key.randomAreaColor, randomAreaColor.a);
         NConfig.set(NConfig.Key.treeScaleDisableZoomHide, treeScaleDisableZoomHide.a);
 
-        // Capture old tree harvest settings before saving
+        // Capture old harvest-overlay settings before saving
         boolean oldTreeHarvestOverlay = getBool(NConfig.Key.treeHarvestOverlay);
         boolean oldTreeHarvestSeeds = getBool(NConfig.Key.treeHarvestSeeds);
         boolean oldTreeHarvestLeaves = getBool(NConfig.Key.treeHarvestLeaves);
         boolean oldTreeHarvestBoughs = getBool(NConfig.Key.treeHarvestBoughs);
         boolean oldTreeHarvestBark = getBool(NConfig.Key.treeHarvestBark);
+        boolean oldBushHarvestOverlay = getBool(NConfig.Key.bushHarvestOverlay);
+        boolean oldLogHarvestOverlay = getBool(NConfig.Key.logHarvestOverlay);
+        boolean oldStoneHarvestOverlay = getBool(NConfig.Key.stoneHarvestOverlay);
+        boolean oldOldtrunkHarvestOverlay = getBool(NConfig.Key.oldtrunkHarvestOverlay);
 
         NConfig.set(NConfig.Key.treeHarvestOverlay, treeHarvestOverlay.a);
         NConfig.set(NConfig.Key.treeHarvestSeeds, treeHarvestSeeds.a);
         NConfig.set(NConfig.Key.treeHarvestLeaves, treeHarvestLeaves.a);
         NConfig.set(NConfig.Key.treeHarvestBoughs, treeHarvestBoughs.a);
         NConfig.set(NConfig.Key.treeHarvestBark, treeHarvestBark.a);
+        NConfig.set(NConfig.Key.bushHarvestOverlay, bushHarvestOverlay.a);
+        NConfig.set(NConfig.Key.logHarvestOverlay, logHarvestOverlay.a);
+        NConfig.set(NConfig.Key.stoneHarvestOverlay, stoneHarvestOverlay.a);
+        NConfig.set(NConfig.Key.oldtrunkHarvestOverlay, oldtrunkHarvestOverlay.a);
 
-        // Rebuild tree harvest overlays if any setting changed
+        // Rebuild harvest overlays if any setting changed
         if (oldTreeHarvestOverlay != treeHarvestOverlay.a
                 || oldTreeHarvestSeeds != treeHarvestSeeds.a
                 || oldTreeHarvestLeaves != treeHarvestLeaves.a
                 || oldTreeHarvestBoughs != treeHarvestBoughs.a
-                || oldTreeHarvestBark != treeHarvestBark.a) {
-            rebuildTreeHarvestOverlays();
+                || oldTreeHarvestBark != treeHarvestBark.a
+                || oldBushHarvestOverlay != bushHarvestOverlay.a
+                || oldLogHarvestOverlay != logHarvestOverlay.a
+                || oldStoneHarvestOverlay != stoneHarvestOverlay.a
+                || oldOldtrunkHarvestOverlay != oldtrunkHarvestOverlay.a) {
+            rebuildHarvestOverlays();
         }
 
         NConfig.set(NConfig.Key.sync_camera, syncCamera.a);
@@ -624,6 +670,16 @@ public class QoL extends Panel {
         NConfig.set(NConfig.Key.treeDisplayScale, treeDisplayScaleSlider.val);
         if (oldTreeDisplayScale != treeDisplayScaleSlider.val) {
             rebuildTreeScale();
+        }
+
+        int oldHideStockpileScale = 50;
+        Object oldHideStockpileScaleObj = NConfig.get(NConfig.Key.hideStockpileScale);
+        if (oldHideStockpileScaleObj instanceof Number) {
+            oldHideStockpileScale = ((Number) oldHideStockpileScaleObj).intValue();
+        }
+        NConfig.set(NConfig.Key.hideStockpileScale, hideStockpileScaleSlider.val);
+        if (oldHideStockpileScale != hideStockpileScaleSlider.val) {
+            rebuildHideStockpiles();
         }
 
         int minThreshold = parseIntOrDefault(treeScaleMinThresholdEntry.text(), 0);
@@ -719,17 +775,41 @@ public class QoL extends Panel {
         }
     }
 
-    private void rebuildTreeHarvestOverlays() {
+    /**
+     * Applies a changed hide-stockpile display size to every hide stockpile already in view.
+     */
+    private void rebuildHideStockpiles() {
         if(NUtils.getGameUI() == null || NUtils.getGameUI().ui == null || NUtils.getGameUI().ui.sess == null) {
             return;
         }
-        NTreeHarvestOl.clearLabelCache();
+        int scale = hideStockpileScaleSlider.val;
         OCache oc = NUtils.getGameUI().ui.sess.glob.oc;
         synchronized(oc) {
             for(Gob gob : oc) {
                 if(gob != null && gob.ngob != null && gob.ngob.name != null
-                    && NTreeHarvestOl.isTreeOrBushRes(gob.ngob.name)) {
-                    gob.ngob.refreshTreeHarvestOverlay();
+                    && gob.ngob.name.equals(nurgling.NGob.HIDE_STOCKPILE_RES)) {
+                    gob.ngob.updateConfigCache(true);
+                    if(scale < 100) {
+                        gob.setattr(new nurgling.gattrr.NHideStockpileScale(gob, scale / 100.0f));
+                    } else {
+                        gob.delattr(nurgling.gattrr.NHideStockpileScale.class);
+                    }
+                }
+            }
+        }
+    }
+
+    private void rebuildHarvestOverlays() {
+        if(NUtils.getGameUI() == null || NUtils.getGameUI().ui == null || NUtils.getGameUI().ui.sess == null) {
+            return;
+        }
+        NObjHarvestOl.clearLabelCache();
+        OCache oc = NUtils.getGameUI().ui.sess.glob.oc;
+        synchronized(oc) {
+            for(Gob gob : oc) {
+                if(gob != null && gob.ngob != null && gob.ngob.name != null
+                    && HarvestSpecs.forResource(gob.ngob.name) != null) {
+                    gob.ngob.refreshHarvestOverlay();
                 }
             }
         }

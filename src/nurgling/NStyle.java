@@ -17,6 +17,24 @@ public class NStyle {
     public static final Color titleBg  = new Color(0x1C, 0x25, 0x26); // title bar bg
     public static final Color separator = new Color(40, 52, 54);      // #283436
 
+    /**
+     * Resolves the window content-area background color, honoring the user's
+     * runtime solid-background / opacity / color settings when running under NUI.
+     * Single source of truth shared by NWindowDeco and the menu grid so they
+     * never visually drift apart.
+     */
+    public static Color resolveWindowBg(haven.UI ui) {
+	if(ui instanceof NUI) {
+	    NUI nui = (NUI)ui;
+	    if(nui.getUseSolidBackground()) {
+		Color c = nui.getWindowBackgroundColor();
+		return new Color(c.getRed(), c.getGreen(), c.getBlue(),
+				 (int)(255 * nui.getUIOpacity()));
+	    }
+	}
+	return windowBg;
+    }
+
     // === Fonts (nurgling replacements for CharWnd.catf / CharWnd.attrf) ===
     public static final Text.Foundry ncatf = new Text.Foundry(
 	nurgling.conf.FontSettings.getOpenSansSemibold(), 16, Color.WHITE).aa(true);
@@ -48,6 +66,7 @@ public class NStyle {
     public static Text.Foundry fcomboitems = new Text.Foundry(Text.sans, 16).aa(true);
     public static Text.Furnace meter = new PUtils.BlurFurn(new Text.Foundry(Text.sans, 12, Color.WHITE).aa(true), 2, 1, new Color(60, 30, 30));
     public static Text.Furnace gmeter = new PUtils.BlurFurn(new Text.Foundry(Text.sans, 12, new Color(102, 178, 12)).aa(true), 2, 1, new Color(60, 30, 30));
+    public static Text.Furnace cmeter = new PUtils.BlurFurn(new Text.Foundry(Text.sans, 12, new Color(0, 255, 255)).aa(true), 2, 1, new Color(0, 0, 0));
     public static Text.Foundry areastitle = new Text.Foundry(Text.serif, 15, Color.WHITE);
     public static Text.Foundry flower = new Text.Foundry(Text.sans, 12, new Color(255, 250, 205)).aa(true);
     public static Text.Foundry iiqual = new Text.Foundry(Text.sans, 12, new Color(0, 0, 0)).aa(true);

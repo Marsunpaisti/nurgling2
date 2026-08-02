@@ -8,7 +8,6 @@ import nurgling.i18n.L10n;
 import nurgling.tools.VSpec;
 import org.json.JSONObject;
 
-import java.awt.*;
 import java.util.*;
 import java.util.List;
 import java.util.function.Consumer;

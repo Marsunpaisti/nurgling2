@@ -27,6 +27,7 @@
 package haven.iosys.audio;
 
 import haven.*;
+import haven.iosys.*;
 import java.util.*;
 import java.util.function.*;
 import haven.Audio.*;
@@ -70,6 +71,10 @@ public class DummyAudio implements AudioSystem {
 		Thread.currentThread().interrupt();
 	    }
 	}
+
+	public String toString() {
+	    return("Dummy player");
+	}
     }
 
     public static class DummySink implements SinkLine {
@@ -91,7 +96,7 @@ public class DummyAudio implements AudioSystem {
 	return(Collections.emptyList());
     }
 
-    private static Factory factory = new Factory() {
+    private static Providers.Factory<AudioSystem> factory = new Providers.Factory<AudioSystem>() {
 	public AudioSystem open(String... args) {
 	    return(instance);
 	}
@@ -99,7 +104,7 @@ public class DummyAudio implements AudioSystem {
 	public int priority() {return(-999);}
 	public boolean autouse() {return(false);}
     };
-    public static Factory get() {
+    public static Providers.Factory<AudioSystem> get() {
 	return(factory);
     }
 }

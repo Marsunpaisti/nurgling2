@@ -127,7 +127,7 @@ public class NUtils
                         } else if (!shouldHide && gob.ngob.natureHidden) {
                             gob.show();
                             gob.ngob.natureHidden = false;
-                            gob.ngob.refreshTreeHarvestOverlay();
+                            gob.ngob.refreshHarvestOverlay();
                         }
                     }
                 }
@@ -850,31 +850,51 @@ public class NUtils
 
     public static boolean navigateToArea(NArea area) throws InterruptedException
     {
+        return navigateToArea(area, false);
+    }
+
+    /**
+     * Navigate to an area.
+     *
+     * When the area is reachable by local pathfinding it is already within
+     * interaction range, so by default we do NOT walk onto it. This keeps the
+     * common "resolve an area's storages" path from dragging every bot across
+     * the map — most importantly right after the user hand-picks a material or
+     * construction-material area, which should not trigger an immediate walk.
+     *
+     * Pass ensurePresence=true when the caller must have the WHOLE area streamed
+     * in before acting — notably before {@link nurgling.tools.Finder#getFreePlace}
+     * chooses a drop cell for a liftable, or when navigating specifically to
+     * reload the area's gobs. A half-loaded area yields stale occupancy and the
+     * object would be dropped onto an as-yet-invisible one; walking onto a corner
+     * forces the grids to load. The walk is skipped when already inside the area.
+     */
+    public static boolean navigateToArea(NArea area, boolean ensurePresence) throws InterruptedException
+    {
         if (area == null) return false;
         NGameUI currentGui = NUtils.getGameUI();
         debugMsg(currentGui, "[NavArea] start area=" + area.name + "#" + area.id + " visible=" + area.isVisible());
 
-        // Check if any corner of the area is reachable via local pathfinding.
-        // If yes, walk onto a corner so callers can rely on the player actually
-        // being at the area afterwards. isAreaReachableByLocalPF has already
-        // verified getRCArea() != null, so checkHit is reliable here — skip the
-        // walk when the player is already inside the area.
         boolean localReachable = nurgling.navigation.AreaNavigationHelper.isAreaReachableByLocalPF(area);
         debugMsg(currentGui, "[NavArea] localPF reachable=" + localReachable + " area=" + area.name + "#" + area.id);
         if (localReachable) {
-            Gob player = player();
-            if (player != null && !area.checkHit(player.rc)) {
-                Coord2d corner = nurgling.navigation.AreaNavigationHelper.findNearestReachableCorner(area);
-                if (corner != null) {
-                    debugMsg(currentGui, "[NavArea] local target=" + corner + " area=" + area.name + "#" + area.id);
-                    new nurgling.actions.PathFinder(corner).run(getGameUI());
+            if (ensurePresence) {
+                Gob player = player();
+                // isAreaReachableByLocalPF has already verified getRCArea() != null,
+                // so checkHit is reliable here — skip the walk when already inside.
+                if (player != null && !area.checkHit(player.rc)) {
+                    Coord2d corner = nurgling.navigation.AreaNavigationHelper.findNearestReachableCorner(area);
+                    if (corner != null) {
+                        debugMsg(currentGui, "[NavArea] local target=" + corner + " area=" + area.name + "#" + area.id);
+                        new nurgling.actions.PathFinder(corner).run(getGameUI());
+                    }
+                    else {
+                        debugMsg(currentGui, "[NavArea] local reachable but no target area=" + area.name + "#" + area.id);
+                    }
                 }
                 else {
-                    debugMsg(currentGui, "[NavArea] local reachable but no target area=" + area.name + "#" + area.id);
+                    debugMsg(currentGui, "[NavArea] already inside area=" + area.name + "#" + area.id);
                 }
-            }
-            else {
-                debugMsg(currentGui, "[NavArea] already inside area=" + area.name + "#" + area.id);
             }
             return true;
         }

@@ -103,7 +103,7 @@ public class LettuceAndPumpkinCollector implements Action {
         }
 
         ArrayList<String> exceptions = new ArrayList<>(items.exceptions);
-        exceptions.addAll(Arrays.asList("stockpile", "barrel"));
+        exceptions.addAll(Arrays.asList("stockpile", "barrel", "plants/"));
         return new NAlias(groundKeys, exceptions);
     }
 

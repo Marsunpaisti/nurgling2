@@ -93,6 +93,7 @@ public class NConfig
         automaptrack,
         unloadgreen,
         sendOverlays,
+        kamiCompatMapper,
         showInventoryNums,
         hidecredo,
         autoDrink,
@@ -108,6 +109,7 @@ public class NConfig
         shortCupboards,
         shortPalisades,
         shortWalls,
+        hideStockpileScale,
         decalsOnTop,
         fillCompostWithSwill,
         ignoreStrawInFarmers,
@@ -181,6 +183,10 @@ public class NConfig
         treeHarvestLeaves,
         treeHarvestBoughs,
         treeHarvestBark,
+        bushHarvestOverlay,
+        logHarvestOverlay,
+        stoneHarvestOverlay,
+        oldtrunkHarvestOverlay,
         treeDisplayScale,
         thinOutlines,
         itemQualityOverlay,
@@ -285,6 +291,7 @@ public class NConfig
         conf.put(Key.automaptrack, false);
         conf.put(Key.unloadgreen, false);
         conf.put(Key.sendOverlays, false);
+        conf.put(Key.kamiCompatMapper, false);
         conf.put(Key.showInventoryNums, true);
         conf.put(Key.autoDrink, false);
         conf.put(Key.autoSaveTableware, true);
@@ -323,6 +330,7 @@ public class NConfig
         conf.put(Key.shortCupboards, false);
         conf.put(Key.shortPalisades, true);
         conf.put(Key.shortWalls, false);
+        conf.put(Key.hideStockpileScale, 50);  // Hide stockpile display size percentage (25-100)
         conf.put(Key.decalsOnTop, false);
         conf.put(Key.fillCompostWithSwill, false);
         conf.put(Key.ignoreStrawInFarmers, false);
@@ -502,6 +510,10 @@ public class NConfig
         conf.put(Key.treeHarvestLeaves, true);    // Sub-filter: show leaf icons
         conf.put(Key.treeHarvestBoughs, true);    // Sub-filter: show bough icons
         conf.put(Key.treeHarvestBark, true);      // Sub-filter: show bark icons
+        conf.put(Key.bushHarvestOverlay, false);  // Show harvest icons on mature bushes
+        conf.put(Key.logHarvestOverlay, false);   // Show harvest icons on felled logs (Board/Block)
+        conf.put(Key.stoneHarvestOverlay, false); // Show harvest icons on mineable stones
+        conf.put(Key.oldtrunkHarvestOverlay, false); // Show harvest icons on old trunks
         conf.put(Key.treeDisplayScale, 100);       // Tree display size percentage (25-100)
 
         // Outline rendering settings
