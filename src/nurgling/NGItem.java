@@ -503,14 +503,14 @@ public class NGItem extends GItem
                             item.q == cachedItemInfo.q &&
                             item.stackIndex == cachedItemInfo.stackIndex
                         );
-                        System.out.println("NGItem.destroy: Immediate removal (transferred): " + name);
+                        //System.out.println("NGItem.destroy: Immediate removal (transferred): " + name);
                     } else {
                         // Schedule cache removal with a delay
                         // If container closes (reqdestroy), pending removals are cleared and cache is synced
                         // If container stays open (item consumed), the removal will be processed in tick()
                         long removeAtTick = NUtils.getTickId() + 15; // 15 ticks delay
                         inv.pendingCacheRemovals.add(new NInventory.PendingCacheRemoval(cachedItemInfo, removeAtTick));
-                        System.out.println("NGItem.destroy: Scheduled removal: " + name + " at tick " + removeAtTick);
+                        //System.out.println("NGItem.destroy: Scheduled removal: " + name + " at tick " + removeAtTick);
                     }
                 }
             }
