@@ -477,7 +477,7 @@ public class UnifiedTilePathfinder {
 
         // Use GateDetector's door pair lookup (same as routes system)
         String expectedPair = GateDetector.getDoorPair(entryGobName);
-        if (expectedPair != null && expectedPair.equals(exitGobName)) {
+        if (GateDetector.isSameDoor(exitGobName, expectedPair)) {
             return true;
         }
 
@@ -849,6 +849,8 @@ public class UnifiedTilePathfinder {
             case CELLAR:
                 return "cellar".equals(targetLayer) || "inside".equals(targetLayer);
             case LADDER:
+            case CAVEIN:
+            case CAVEOUT:
                 return "outside".equals(targetLayer);
             case STAIRS_UP:
             case STAIRS_DOWN:
