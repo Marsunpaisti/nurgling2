@@ -59,7 +59,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     private Window invwnd;
     public Window equwnd;
     private Window makewnd;
-    private Window srchwnd;
+    private MenuSearch srchwnd;
     public Window iconwnd;
     private Coord makewndc = Utils.getprefc("makewndc", new Coord(400, 200));
     public Inventory maininv;
@@ -337,6 +337,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 			this.setfocus(srchwnd);
 		    else
 			togglewnd(srchwnd);
+		    if(srchwnd.visible())
+			srchwnd.focussbox();
 		}
 	    }, bg.c);
     }
@@ -762,7 +764,9 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    NMenuGridWdg mwdg = new NMenuGridWdg();
 		menu = mwdg.setMenuGrid((MenuGrid)child);
 		add(new NDraggableWidget(mwdg,"menugrid",new Coord(mwdg.sz).add(NDraggableWidget.delta)));
-	    fitwdg(srchwnd = GameUI.this.add(new MenuSearch.Main(menu), Utils.getprefc("wndc-srch", UI.scale(200, 200))));
+	    MenuSearch.Main srch = new MenuSearch.Main(menu);
+	    srch.posmem("srch");
+	    fitwdg(srchwnd = GameUI.this.add(srch, srch.restorepos(UI.scale(200, 200))));
 	    srchwnd.reqclose(srchwnd::hide).hide();
 	} else if(place == "fight") {
 	   add(new NDraggableWidget( fv = (Fightview)child,"Fightview",UI.scale(230,380)));
@@ -796,6 +800,13 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 				else {
 					return super.keydown(ev);
 				}
+			}
+
+			@Override
+			public void hide() {
+				super.hide();
+				if(maininv instanceof nurgling.NInventory)
+					((nurgling.NInventory)maininv).wipeSearch();
 			}
 		};
 	    invwnd.add(maininv = (Inventory)child, Coord.z);

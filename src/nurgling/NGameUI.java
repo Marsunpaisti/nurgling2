@@ -57,11 +57,14 @@ public class NGameUI extends GameUI
     public TreeSearchWindow treeSearchWindow = null;
     public final Map<String, TreeLocationDetailsWindow> openTreeDetailWindows = new HashMap<>();
     public LabeledMarkService labeledMarkService;
-    public TerrainSearchWindow terrainSearchWindow = null;
+    public MapToolsWindow mapToolsWindow = null;
     public StudyDeskPlannerWidget studyDeskPlanner = null;
     public NDraggableWidget studyReportWidget = null;
     public DbStatsOverlay dbStatsOverlay = null;
     public nurgling.routes.ForagerPath activeBotPath = null;
+
+    /** Prospecting results waiting to be paired up with their window; see NProspecting. */
+    public final NProspecting.Pending prospecting = new NProspecting.Pending();
 
     // Local storage for ring settings
     public IconRingConfig iconRingConfig;
@@ -79,7 +82,6 @@ public class NGameUI extends GameUI
     private static final Map<String, Float> WORLD_SPEED_MAP = new HashMap<>();
 
     private void initWorldSpeedMap() {
-        WORLD_SPEED_MAP.put("b7c199a4557503a8", 4.93f); // W16.1
         WORLD_SPEED_MAP.put("c646473983afec09", DEFAULT_WORLD_SPEED); // W16
     }
 
@@ -515,10 +517,14 @@ public class NGameUI extends GameUI
         String place = ((String) args[0]).intern();
         if (place == "craft") {
             if (craftwnd == null) {
-                craftwnd = add(new NCraftWindow(), new Coord(400, 200));
+                NCraftWindow cwnd = new NCraftWindow();
+                cwnd.posmem("craft");
+                craftwnd = add(cwnd, cwnd.restorepos(new Coord(400, 200)));
+                fitwdg(craftwnd);
             }
             craftwnd.add(child);
             craftwnd.pack();
+            fitwdg(craftwnd);
             craftwnd.raise();
             craftwnd.show();
         }

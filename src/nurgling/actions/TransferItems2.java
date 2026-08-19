@@ -183,6 +183,8 @@ public class TransferItems2 implements Action
                     ttc.run(gui);
                 }
                 if (output instanceof NContext.Barrel) {
+                    if (getItemsExactMatch(itemTransfer.itemName, itemTransfer.quality).isEmpty())
+                        break;
                     NUtils.debugMsg(gui, "[TransferItems2] transfer to barrel area=" + areaId + " item=" + itemTransfer.itemName +
                             " barrel=" + ((NContext.Barrel) output).barrel);
                     new TransferToBarrel(Finder.findGob(((NContext.Barrel) output).barrel),

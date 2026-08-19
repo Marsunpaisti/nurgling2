@@ -220,6 +220,14 @@ public class NConfig
         // Bot path display
         showBotPathOnMinimap,
         showBotPathOnGround,
+        // Movement waypoints (alt+click) drawn in the 3D world
+        showWaypointsInWorld,
+        waypointColorActive,
+        waypointColorQueued,
+        // Map tools panel
+        showTreeIcons,
+        showFishIcons,
+        prospectMarks,
         // Localization
         language
     }
@@ -285,6 +293,9 @@ public class NConfig
         conf.put(Key.discordWebhookUrl, "");
         conf.put(Key.showGrid, false);
         conf.put(Key.showView, false);
+        conf.put(Key.showTreeIcons, true);
+        conf.put(Key.showFishIcons, true);
+        conf.put(Key.prospectMarks, new ProspectMarkSettings());
         conf.put(Key.disableWinAnim, true);
         conf.put(Key.disableMenugridKeys, false);
         conf.put(Key.baseurl, "https://raw.githubusercontent.com/aleksandrsvoboda/nurgling-release/stable/ver");
@@ -589,6 +600,7 @@ public class NConfig
         // Bot path display
         conf.put(Key.showBotPathOnMinimap, false);
         conf.put(Key.showBotPathOnGround, false);
+        conf.put(Key.showWaypointsInWorld, true);
     }
 
 
@@ -1144,6 +1156,9 @@ public class NConfig
                                 case "ItemQualityOverlaySettings":
                                     conf.put(Key.valueOf(entry.getKey()), new ItemQualityOverlaySettings(hobj));
                                     break;
+                                case "ProspectMarkSettings":
+                                    conf.put(Key.valueOf(entry.getKey()), new ProspectMarkSettings(hobj));
+                                    break;
                                 case "Color":
                                     try {
                                         int red = ((Number) hobj.get("red")).intValue();
@@ -1258,6 +1273,9 @@ public class NConfig
         }
 
         conf.put(Key.showCSprite,conf.get(Key.nextshowCSprite));
+        // Flat surface applies live now (see nurgling.tools.FlatWorld), which keeps both keys
+        // equal, so this only still does anything for a config where an older build staged a
+        // change that its restart never picked up.
         conf.put(Key.flatsurface,conf.get(Key.nextflatsurface));
 
         // Publish only now that conf is fully populated, so no other thread can

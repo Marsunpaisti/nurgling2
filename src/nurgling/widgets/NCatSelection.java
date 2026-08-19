@@ -3,11 +3,14 @@ package nurgling.widgets;
 import haven.*;
 import haven.Label;
 import haven.Window;
+import haven.res.lib.itemtex.ItemTex;
 import nurgling.*;
 import nurgling.i18n.L10n;
 import nurgling.tools.VSpec;
 import org.json.JSONObject;
 
+import java.awt.*;
+import java.awt.image.BufferedImage;
 import java.util.*;
 import java.util.List;
 import java.util.function.Consumer;
@@ -230,6 +233,57 @@ public class NCatSelection extends Window {
         }
     }
 
+    private static Tex missingIcon = null;
+    private static final Map<String, Defer.Future<Tex>> iconCache = new HashMap<>();
+
+    // Иконка элемента. ItemTex.create() блокирует поток на загрузке ресурса, поэтому
+    // грузим в фоне: пока не готово - возвращаем null (иконка просто не рисуется).
+    private static Tex icon(Element item) {
+        String key = item.res.toString();
+        Defer.Future<Tex> f;
+        synchronized(iconCache) {
+            f = iconCache.get(key);
+            if(f == null)
+                iconCache.put(key, f = Defer.later(() -> loadIcon(item)));
+        }
+        try {
+            return f.get();
+        } catch(Loading l) {
+            return null;
+        } catch(Defer.DeferredException e) {
+            return missingIcon();
+        }
+    }
+
+    // Битый или удаленный с сервера ресурс не должен ронять UI-поток, поэтому вместо
+    // иконки подставляем заглушку. NoSuchResourceException - это BadResourceException,
+    // а не LoadException, так что ловить надо оба дерева.
+    private static Tex loadIcon(Element item) {
+        try {
+            BufferedImage img = ItemTex.create(item.res);
+            if(img != null)
+                return new TexI(img);
+        } catch(Resource.LoadException | Resource.BadResourceException | NullPointerException e) {
+            System.out.println("NCatSelection: failed to load icon for '" + item.getName() + "' (" + item.res + "): " + e.getMessage());
+        }
+        return missingIcon();
+    }
+
+    private static synchronized Tex missingIcon() {
+        if(missingIcon == null) {
+            Coord sz = UI.scale(new Coord(32, 32));
+            BufferedImage img = TexI.mkbuf(sz);
+            Graphics g = img.getGraphics();
+            g.setColor(new java.awt.Color(255, 64, 64, 160));
+            g.drawRect(1, 1, sz.x - 3, sz.y - 3);
+            g.drawLine(1, 1, sz.x - 2, sz.y - 2);
+            g.drawLine(1, sz.y - 2, sz.x - 2, 1);
+            g.dispose();
+            missingIcon = new TexI(img);
+        }
+        return missingIcon;
+    }
+
     public class ElementList extends SListBox<Element, Widget> {
         private List<Element> internalElements = new ArrayList<>();
         public ElementList(Coord sz) {
@@ -245,9 +299,7 @@ public class NCatSelection extends Window {
         protected Widget makeitem(Element item, int idx, Coord sz) {
             return new ItemWidget<Element>(this, sz, item) {
                 {
-                    // Загружаем иконку элемента и добавляем к виджету
-                    Tex icon = NCatSelectionIcons.itemIcon(item.res);
-                    add(new ElementWidget(item, icon), Coord.z);
+                    add(new ElementWidget(item), Coord.z);
                 }
             };
         }
@@ -263,14 +315,12 @@ public class NCatSelection extends Window {
 
     public class ElementWidget extends Widget {
         private final Element element;
-        private final Tex icon;
         private final Label label;
         private final IButton addToInputButton; // Кнопка для добавления в IN
         private final IButton addToOutputButton;
 
-        public ElementWidget(Element element, Tex icon) {
+        public ElementWidget(Element element) {
             this.element = element;
-            this.icon = icon;
             int desiredHeight = UI.scale(32);
             // Инициализация кнопки для добавления в IN
             add(label = new Label(element.getName(), fnd), UI.scale(70, desiredHeight/2 - UI.scale(11)));
@@ -307,8 +357,11 @@ public class NCatSelection extends Window {
         @Override
         public void draw(GOut g) {
             super.draw(g);
+            Tex icon = icon(element);
+            if(icon == null) // еще грузится
+                return;
             int desiredHeight = UI.scale(32);
-            int scaledWidth = UI.scale((int) (icon.sz().x * desiredHeight / icon.sz().y));
+            int scaledWidth = icon.sz().x * desiredHeight / icon.sz().y;
 
             g.image(icon, Coord.z, new Coord(scaledWidth,desiredHeight));
         }
